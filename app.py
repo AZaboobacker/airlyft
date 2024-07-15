@@ -13,16 +13,16 @@ import nacl.encoding
 import nacl.public
 import nacl.signing
 
-# Access secrets from environment variables
+# Load environment variables from .env file
+load_dotenv()
+
+# Access secrets
 openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
 
 # Initialize OpenAI client
-client = OpenAI(
-    organization='org-2KJ56jBro4cKVh3uvN8HsJlN',
-    api_key=openai_api_key
-)
+client = OpenAI(api_key=openai_api_key)
 
 st.title("App Idea to Deployed Application")
 
@@ -175,6 +175,18 @@ if deploy_button:
             """
             repo.create_file("entrypoint.sh", "add entrypoint.sh", entrypoint_sh)
             print("entrypoint.sh pushed to GitHub.")
+
+            # Create and push the heroku.yml file
+            heroku_yml = """
+            build:
+              docker:
+                web: Dockerfile
+
+            run:
+              web: ./entrypoint.sh
+            """
+            repo.create_file("heroku.yml", "add heroku.yml", heroku_yml)
+            print("heroku.yml pushed to GitHub.")
 
             st.success("Code pushed to GitHub successfully!")
         except Exception as e:
