@@ -91,7 +91,7 @@ if deploy_button:
 
                 # Check if the repository already exists
                 repo_exists = any(repo.name == repo_name for repo in user.get_repos())
-                if repo_exists, generate a unique repo name:
+                if repo_exists:
                     unique_suffix = str(uuid.uuid4())[:8]
                     repo_name = f"{repo_name}-{unique_suffix}"
 
