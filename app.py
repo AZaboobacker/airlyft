@@ -13,10 +13,7 @@ import nacl.encoding
 import nacl.public
 import nacl.signing
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Access secrets
+# Access secrets from environment variables
 openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
