@@ -18,7 +18,7 @@ load_dotenv()
 
 # Access secrets
 openai_api_key = os.getenv("OPENAI_API_KEY")
-github_token = os.getenv("GITHUB_TOKEN")
+github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
 
 # Initialize OpenAI client
