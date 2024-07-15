@@ -21,6 +21,19 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
 
+# Ensure secrets are set
+if not openai_api_key:
+    st.error("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+    st.stop()
+
+if not github_token:
+    st.error("GitHub token not found. Please set the MY_GITHUB_TOKEN environment variable.")
+    st.stop()
+
+if not heroku_api_key:
+    st.error("Heroku API key not found. Please set the HEROKU_API_KEY environment variable.")
+    st.stop()
+
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
 
@@ -112,6 +125,8 @@ if deploy_button:
             # Extract imports and generate requirements.txt
             imports = extract_imports(code_block)
             requirements = generate_requirements(imports)
+            if 'streamlit' not in requirements:
+                requirements = 'streamlit\n' + requirements
             repo.create_file("requirements.txt", "add requirements", requirements)
             print("requirements.txt pushed to GitHub.")
 
