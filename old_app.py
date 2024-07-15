@@ -7,14 +7,11 @@ import os
 import time
 import re
 import uuid
+import base64
 import ast
-import json
-import gspread
-from google.oauth2.service_account import Credentials
 import nacl.encoding
 import nacl.public
 import nacl.signing
-from googleapiclient.discovery import build
 
 # Load environment variables from .env file
 load_dotenv()
@@ -23,7 +20,6 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
-google_creds_json = os.getenv("GOOGLE_CREDS_JSON")
 
 # Ensure secrets are set
 if not openai_api_key:
@@ -38,10 +34,6 @@ if not heroku_api_key:
     st.error("Heroku API key not found. Please set the HEROKU_API_KEY environment variable.")
     st.stop()
 
-if not google_creds_json:
-    st.error("Google credentials not found. Please set the GOOGLE_CREDS_JSON environment variable.")
-    st.stop()
-
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
 
@@ -51,8 +43,6 @@ st.title("App Idea to Deployed Application")
 with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     repo_name_input = st.text_input("GitHub Repository Name:", value="generated-streamlit-app")
-    pitch_deck = st.checkbox("Pitch Deck")
-    document = st.checkbox("Document")
     submitted = st.form_submit_button("Generate App Code")
 
 def extract_imports(code):
@@ -74,12 +64,7 @@ def generate_requirements(imports):
         'github': 'PyGithub',
         'dotenv': 'python-dotenv',
         'nacl': 'pynacl',
-        'plotly': 'plotly',
-        'gspread': 'gspread',
-        'google-auth': 'google-auth',
-        'google-auth-oauthlib': 'google-auth-oauthlib',
-        'google-auth-httplib2': 'google-auth-httplib2',
-        'google-api-python-client': 'google-api-python-client'
+        'plotly': 'plotly'
     }
     return "\n".join([base_requirements.get(lib, lib) for lib in imports if lib in base_requirements])
 
@@ -102,29 +87,6 @@ if submitted:
         except Exception as e:
             st.error(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
-
-        # Add to Google Sheets if Pitch Deck or Document is checked
-        if pitch_deck or document:
-            try:
-                creds = Credentials.from_service_account_info(
-                    json.loads(google_creds_json),
-                    scopes=["https://www.googleapis.com/auth/spreadsheets"]
-                )
-                client = gspread.authorize(creds)
-                sheet = client.open("AIrlyft").sheet1  # Ensure this sheet exists in your Google Sheets
-
-                # Append row
-                unique_id = str(uuid.uuid4())
-                new_row = [app_prompt, repo_name_input, pitch_deck, document, unique_id]
-                sheet.append_row(new_row)
-
-                # Store UUID in session state for fetching download links later
-                st.session_state['uuid'] = unique_id
-
-                st.success("Added to Google Sheets and triggered Make.com workflow!")
-            except Exception as e:
-                st.error(f"Error updating Google Sheets: {e}")
-                print(f"Error updating Google Sheets: {e}")
 
 deploy_button = st.button("Deploy Application")
 
@@ -368,37 +330,3 @@ if deploy_button:
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
             print(f"Error deploying to Heroku: {e}")
-
-# Create functions to provide download links for the generated pitch deck and document
-def get_download_links(uuid):
-    try:
-        creds = Credentials.from_service_account_info(
-            json.loads(google_creds_json),
-            scopes=["https://www.googleapis.com/auth/drive.readonly"]
-        )
-        drive_service = build('drive', 'v3', credentials=creds)
-
-        # Assuming you have a specific folder in Google Drive where generated files are saved
-        query = f"name contains '{uuid}' and mimeType='application/vnd.google-apps.presentation'"
-        results = drive_service.files().list(q=query, pageSize=10, fields="files(id, name)").execute()
-        items = results.get('files', [])
-        if not items:
-            st.info("No pitch deck found.")
-        else:
-            for item in items:
-                st.markdown(f"[Download Pitch Deck](https://drive.google.com/uc?id={item['id']}&export=download)")
-
-        query = f"name contains '{uuid}' and mimeType='application/vnd.google-apps.document'"
-        results = drive_service.files().list(q=query, pageSize=10, fields="files(id, name)").execute()
-        items = results.get('files', [])
-        if not items:
-            st.info("No document found.")
-        else:
-            for item in items:
-                st.markdown(f"[Download Document](https://drive.google.com/uc?id={item['id']}&export=download)")
-    except Exception as e:
-        st.error(f"Error fetching download links: {e}")
-
-# Show download links if available
-if 'uuid' in st.session_state:
-    get_download_links(st.session_state['uuid'])
