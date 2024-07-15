@@ -1,7 +1,7 @@
-streamlit==1.17.0
-openai==1.35.13
-requests==2.27.1
-github==1.2.7
-GitPython==3.1.30
-python-dotenv==1.0.1
-PyNaCl==1.5.0
+streamlit
+openai
+requests
+PyGithub
+python-dotenv
+pynacl
+plotly
