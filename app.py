@@ -18,7 +18,7 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
-airtable_api_key = os.getenv("AIRTABLE_API_KEY")
+airtable_api_key = os.getenv("AIRTABLE_PERSONAL_TOKEN")
 airtable_base_id = os.getenv("Airlyft")
 airtable_table_name = os.getenv("AIrlyft")
 
