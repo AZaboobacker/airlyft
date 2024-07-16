@@ -104,7 +104,7 @@ if submitted:
                     "unique_id": unique_id,
                     "app_prompt": app_prompt,
                     "repo_name_input": repo_name_input,
-                    "Status": "In Progress",
+                    "Status": "In progress",
                     "pitch_deck": pitch_deck,
                     "document": document,
                 }
