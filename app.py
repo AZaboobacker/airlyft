@@ -120,7 +120,6 @@ if submitted:
                     "Status": "In Progress",
                     "pitch_deck": pitch_deck,
                     "document": document,
-                    "Created Time": time.strftime('%Y-%m-%dT%H:%M:%S')
                 }
                 airtable.create(new_row)
                 st.success("Added to Airtable and triggered Make.com workflow!")
