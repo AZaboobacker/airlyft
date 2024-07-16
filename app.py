@@ -135,6 +135,7 @@ if submitted:
             except Exception as e:
                 st.error(f"Error updating Google Sheets: {e}")
                 print(f"Error updating Google Sheets: {e}")
+                st.stop()
 
 deploy_button = st.button("Deploy Application")
 
