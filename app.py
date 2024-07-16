@@ -42,6 +42,17 @@ if not google_creds_json:
     st.error("Google credentials not found. Please set the GOOGLE_CREDS_JSON environment variable.")
     st.stop()
 
+# Debug: Print Google credentials JSON to ensure it's loaded correctly
+try:
+    google_creds = json.loads(google_creds_json)
+    st.write("Google credentials loaded successfully.")
+except json.JSONDecodeError as e:
+    st.error(f"Error decoding Google credentials JSON: {e}")
+    st.stop()
+except Exception as e:
+    st.error(f"Unexpected error loading Google credentials: {e}")
+    st.stop()
+
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
 
@@ -107,11 +118,11 @@ if submitted:
         if pitch_deck or document:
             try:
                 creds = Credentials.from_service_account_info(
-                    json.loads(google_creds_json),
+                    google_creds,
                     scopes=["https://www.googleapis.com/auth/spreadsheets"]
                 )
                 client = gspread.authorize(creds)
-                sheet = client.open("AIrlyft").sheet1  # Ensure this sheet exists in your Google Sheets
+                sheet = client.open("App Ideas").sheet1  # Ensure this sheet exists in your Google Sheets
 
                 # Append row
                 unique_id = str(uuid.uuid4())
@@ -373,7 +384,7 @@ if deploy_button:
 def get_download_links(uuid):
     try:
         creds = Credentials.from_service_account_info(
-            json.loads(google_creds_json),
+            google_creds,
             scopes=["https://www.googleapis.com/auth/drive.readonly"]
         )
         drive_service = build('drive', 'v3', credentials=creds)
