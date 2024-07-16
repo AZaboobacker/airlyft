@@ -111,7 +111,7 @@ if submitted:
                     scopes=["https://www.googleapis.com/auth/spreadsheets"]
                 )
                 client = gspread.authorize(creds)
-                sheet = client.open("App Ideas").sheet1  # Ensure this sheet exists in your Google Sheets
+                sheet = client.open("AIrlyft").sheet1  # Ensure this sheet exists in your Google Sheets
 
                 # Append row
                 unique_id = str(uuid.uuid4())
