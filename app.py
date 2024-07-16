@@ -9,10 +9,7 @@ import re
 import uuid
 import ast
 import base64
-import json
-import gspread
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
+from airtable import Airtable
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,7 +18,9 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
-google_creds_base64 = os.getenv("GOOGLE_CREDS_JSON_BASE64")
+airtable_api_key = os.getenv("AIRTABLE_API_KEY")
+airtable_base_id = os.getenv("Airlyft")
+airtable_table_name = os.getenv("AIrlyft")
 
 # Ensure secrets are set
 if not openai_api_key:
@@ -36,24 +35,15 @@ if not heroku_api_key:
     st.error("Heroku API key not found. Please set the HEROKU_API_KEY environment variable.")
     st.stop()
 
-if not google_creds_base64:
-    st.error("Google credentials not found. Please set the GOOGLE_CREDS_JSON_BASE64 environment variable.")
-    st.stop()
-
-# Decode the Base64-encoded Google credentials JSON
-try:
-    google_creds_json = base64.b64decode(google_creds_base64).decode('utf-8')
-    google_creds = json.loads(google_creds_json)
-    st.write("Google credentials loaded successfully.")
-except json.JSONDecodeError as e:
-    st.error(f"Error decoding Google credentials JSON: {e}")
-    st.stop()
-except Exception as e:
-    st.error(f"Unexpected error loading Google credentials: {e}")
+if not airtable_api_key:
+    st.error("Airtable API key not found. Please set the AIRTABLE_API_KEY environment variable.")
     st.stop()
 
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
+
+# Initialize Airtable client
+airtable = Airtable(airtable_base_id, airtable_table_name, api_key=airtable_api_key)
 
 st.title("App Idea to Deployed Application")
 
@@ -85,11 +75,7 @@ def generate_requirements(imports):
         'dotenv': 'python-dotenv',
         'nacl': 'pynacl',
         'plotly': 'plotly',
-        'gspread': 'gspread',
-        'google-auth': 'google-auth',
-        'google-auth-oauthlib': 'google-auth-oauthlib',
-        'google-auth-httplib2': 'google-auth-httplib2',
-        'google-api-python-client': 'google-api-python-client'
+        'airtable-python-wrapper': 'airtable-python-wrapper'
     }
     return "\n".join([base_requirements.get(lib, lib) for lib in imports if lib in base_requirements])
 
@@ -113,31 +99,25 @@ if submitted:
             st.error(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
 
-        # Add to Google Sheets if Pitch Deck or Document is checked
+        # Add to Airtable if Pitch Deck or Document is checked
         if pitch_deck or document:
             try:
-                # Use the Google service account credentials
-                creds = Credentials.from_service_account_info(
-                    google_creds,
-                    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file"]
-                )
-                client = gspread.authorize(creds)
-                sheet = client.open("AIrlyft").sheet1  # Ensure this sheet exists in your Google Sheets
-
-                # Append row
                 unique_id = str(uuid.uuid4())
-                new_row = [app_prompt, repo_name_input, pitch_deck, document, unique_id]
-                
-                response = sheet.append_row(new_row)
-                st.write(f"Append row response: {response}")
-
-                # Store UUID in session state for fetching download links later
-                st.session_state['uuid'] = unique_id
-
-                st.success("Added to Google Sheets and triggered Make.com workflow!")
+                new_row = {
+                    "unique_id": unique_id,
+                    "app_prompt": app_prompt,
+                    "repo_name_input": repo_name_input,
+                    "Status": "In Progress",
+                    "pitch_deck": pitch_deck,
+                    "document": document,
+                    "created_time": str(time.strftime('%Y-%m-%dT%H:%M:%S'))
+                }
+                airtable.insert(new_row)
+                st.success("Added to Airtable and triggered Make.com workflow!")
+                st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
             except Exception as e:
-                st.error(f"Error updating Google Sheets: {e}")
-                print(f"Error updating Google Sheets: {e}")
+                st.error(f"Error updating Airtable: {e}")
+                print(f"Error updating Airtable: {e}")
                 st.stop()
 
 deploy_button = st.button("Deploy Application")
@@ -371,6 +351,7 @@ if deploy_button:
             repo.update_file("setup.sh", "deploy to Heroku", setup_sh, repo.get_contents("setup.sh").sha)
             repo.update_file("Dockerfile", "deploy to Heroku", dockerfile, repo.get_contents("Dockerfile").sha)
             repo.update_file("entrypoint.sh", "deploy to Heroku", entrypoint_sh, repo.get_contents("entrypoint.sh").sha)
+            repo.update_file("heroku.yml", "deploy to Heroku", heroku_yml, repo.get_contents("heroku.yml").sha)
             print("Pushed updates to GitHub to trigger deployment.")
 
             st.info("Waiting for deployment to complete...")
