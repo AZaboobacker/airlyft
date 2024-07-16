@@ -118,7 +118,7 @@ if submitted:
             try:
                 creds = Credentials.from_service_account_info(
                     google_creds,
-                    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+                    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file"]
                 )
                 client = gspread.authorize(creds)
                 sheet = client.open("App Ideas").sheet1  # Ensure this sheet exists in your Google Sheets
