@@ -44,8 +44,10 @@ if not google_creds_json:
 
 # Debug: Print Google credentials JSON to ensure it's loaded correctly
 try:
-    google_creds = json.loads(google_creds_json)
+    google_creds_json_stripped = google_creds_json.strip()
+    google_creds = json.loads(google_creds_json_stripped)
     st.write("Google credentials loaded successfully.")
+    st.write(google_creds)  # Print the parsed JSON for debugging
 except json.JSONDecodeError as e:
     st.error(f"Error decoding Google credentials JSON: {e}")
     st.write(f"Raw JSON: {google_creds_json}")  # Debugging: Print the raw JSON string
