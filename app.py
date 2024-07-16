@@ -48,6 +48,7 @@ try:
     st.write("Google credentials loaded successfully.")
 except json.JSONDecodeError as e:
     st.error(f"Error decoding Google credentials JSON: {e}")
+    st.write(f"Raw JSON: {google_creds_json}")  # Debugging: Print the raw JSON string
     st.stop()
 except Exception as e:
     st.error(f"Unexpected error loading Google credentials: {e}")
