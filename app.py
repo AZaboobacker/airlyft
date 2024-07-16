@@ -122,11 +122,19 @@ if submitted:
                 )
                 client = gspread.authorize(creds)
                 sheet = client.open("AIrlyft").sheet1  # Ensure this sheet exists in your Google Sheets
+                st.write("Sheet Exists")
 
                 # Append row
                 unique_id = str(uuid.uuid4())
                 new_row = [app_prompt, repo_name_input, pitch_deck, document, unique_id]
+                st.write("New Row", new_row)
                 sheet.append_row(new_row)
+                st.write("Append Row")
+                
+                # Debugging: Print the response status and content
+                response = sheet.append_row(new_row)
+                st.write(f"Response status: {response.status_code}")
+                st.write(f"Response content: {response.content}")
 
                 # Store UUID in session state for fetching download links later
                 st.session_state['uuid'] = unique_id
