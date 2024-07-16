@@ -10,6 +10,7 @@ import uuid
 import ast
 import base64
 from pyairtable import Table
+from pyairtable.api.table import Airtable
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,8 +20,8 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
 airtable_api_key = os.getenv("AIRTABLE_API_KEY")
-airtable_base_id = "Airlyft"
-airtable_table_name = "AIrlyft"
+airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
+airtable_table_name = os.getenv("AIRTABLE_TABLE_NAME")
 
 # Ensure secrets are set
 if not openai_api_key:
