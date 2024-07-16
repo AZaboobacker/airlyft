@@ -104,7 +104,7 @@ if submitted:
                     "unique_id": unique_id,
                     "app_prompt": app_prompt,
                     "repo_name_input": repo_name_input,
-                    "Status": "In progress",
+                    "Status": "In Progress",
                     "pitch_deck": pitch_deck,
                     "document": document,
                 }
@@ -374,31 +374,18 @@ if deploy_button:
 # Create functions to provide download links for the generated pitch deck and document
 def get_download_links(uuid):
     try:
-        google_creds = json.loads(google_creds_json)
-        creds = Credentials.from_service_account_info(
-            google_creds,
-            scopes=["https://www.googleapis.com/auth/drive.readonly"]
-        )
-        drive_service = build('drive', 'v3', credentials=creds)
-
-        # Assuming you have a specific folder in Google Drive where generated files are saved
-        query = f"name contains '{uuid}' and mimeType='application/vnd.google-apps.presentation'"
-        results = drive_service.files().list(q=query, pageSize=10, fields="files(id, name)").execute()
-        items = results.get('files', [])
-        if not items:
-            st.info("No pitch deck found.")
-        else:
-            for item in items:
-                st.markdown(f"[Download Pitch Deck](https://drive.google.com/uc?id={item['id']}&export=download)")
-
-        query = f"name contains '{uuid}' and mimeType='application/vnd.google-apps.document'"
-        results = drive_service.files().list(q=query, pageSize=10, fields="files(id, name)").execute()
-        items = results.get('files', [])
-        if not items:
-            st.info("No document found.")
-        else:
-            for item in items:
-                st.markdown(f"[Download Document](https://drive.google.com/uc?id={item['id']}&export=download)")
+        airtable_records = airtable.all()
+        for record in airtable_records:
+            fields = record['fields']
+            if fields.get('unique_id') == uuid:
+                pitch_deck_url = fields.get('pitch_deck_url')
+                document_url = fields.get('document_url')
+                if pitch_deck_url:
+                    st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
+                if document_url:
+                    st.markdown(f"[Download Document]({document_url})")
+                return
+        st.info("No matching record found in Airtable.")
     except Exception as e:
         st.error(f"Error fetching download links: {e}")
 
