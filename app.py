@@ -10,7 +10,8 @@ import uuid
 import ast
 import base64
 from pyairtable import Table
-from pyairtable.api.table import Airtable
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 
 # Load environment variables from .env file
 load_dotenv()
