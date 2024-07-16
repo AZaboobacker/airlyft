@@ -8,12 +8,10 @@ import time
 import re
 import uuid
 import ast
+import base64
 import json
 import gspread
 from google.oauth2.service_account import Credentials
-import nacl.encoding
-import nacl.public
-import nacl.signing
 from googleapiclient.discovery import build
 
 # Load environment variables from .env file
@@ -23,7 +21,7 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
-google_creds_json = os.getenv("GOOGLE_CREDS_JSON")
+google_creds_base64 = os.getenv("GOOGLE_CREDS_JSON_BASE64")
 
 # Ensure secrets are set
 if not openai_api_key:
@@ -38,27 +36,17 @@ if not heroku_api_key:
     st.error("Heroku API key not found. Please set the HEROKU_API_KEY environment variable.")
     st.stop()
 
-if not google_creds_json:
-    st.error("Google credentials not found. Please set the GOOGLE_CREDS_JSON environment variable.")
+if not google_creds_base64:
+    st.error("Google credentials not found. Please set the GOOGLE_CREDS_JSON_BASE64 environment variable.")
     st.stop()
 
-# Debug: Print Google credentials JSON to ensure it's loaded correctly
+# Decode the Base64-encoded Google credentials JSON
 try:
-    google_creds_json = google_creds_json.strip()
-    if google_creds_json.startswith('"') and google_creds_json.endswith('"'):
-        google_creds_json = google_creds_json[1:-1].replace('\\"', '"')
-
-    st.write("Raw Google credentials JSON:")
-    st.write(google_creds_json)  # Print the raw JSON string for debugging
-
+    google_creds_json = base64.b64decode(google_creds_base64).decode('utf-8')
     google_creds = json.loads(google_creds_json)
-    st.write("Parsed Google credentials JSON:")
-    st.write(google_creds)  # Print the parsed JSON for debugging
-
     st.write("Google credentials loaded successfully.")
 except json.JSONDecodeError as e:
     st.error(f"Error decoding Google credentials JSON: {e}")
-    st.write(f"Raw JSON: {google_creds_json}")  # Debugging: Print the raw JSON string
     st.stop()
 except Exception as e:
     st.error(f"Unexpected error loading Google credentials: {e}")
