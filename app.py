@@ -121,23 +121,15 @@ if submitted:
                     google_creds,
                     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file"]
                 )
-                st.write("creds", creds)
                 client = gspread.authorize(creds)
-                st.write("client", client)
                 sheet = client.open("AIrlyft").sheet1  # Ensure this sheet exists in your Google Sheets
-                st.write("Opened Sheet")
 
                 # Append row
                 unique_id = str(uuid.uuid4())
                 new_row = [app_prompt, repo_name_input, pitch_deck, document, unique_id]
-                st.write("Row", new_row)
-                sheet.append_row(new_row)
-                st.write("Appended")
-
-                # Debugging: Print the response status and content
+                
                 response = sheet.append_row(new_row)
-                st.write(f"Response status: {response.status_code}")
-                st.write(f"Response content: {response.content}")
+                st.write(f"Append row response: {response}")
 
                 # Store UUID in session state for fetching download links later
                 st.session_state['uuid'] = unique_id
