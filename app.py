@@ -120,7 +120,9 @@ if submitted:
                     google_creds,
                     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file"]
                 )
+                st.write("Creds", creds)
                 client = gspread.authorize(creds)
+                st.write("client", client)
                 sheet = client.open("AIrlyft").sheet1  # Ensure this sheet exists in your Google Sheets
                 st.write("Sheet Exists")
 
