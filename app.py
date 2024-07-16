@@ -116,6 +116,28 @@ if submitted:
                 print(f"Error updating Airtable: {e}")
                 st.stop()
 
+# Create functions to provide download links for the generated pitch deck and document
+def get_download_links(uuid):
+    try:
+        airtable_records = airtable.all()
+        for record in airtable_records:
+            fields = record['fields']
+            if fields.get('unique_id') == uuid:
+                pitch_deck_url = fields.get('pitch_deck_url')
+                document_url = fields.get('document_url')
+                if pitch_deck_url:
+                    st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
+                if document_url:
+                    st.markdown(f"[Download Document]({document_url})")
+                return
+        st.info("No matching record found in Airtable.")
+    except Exception as e:
+        st.error(f"Error fetching download links: {e}")
+
+# Show download links if available
+if 'uuid' in st.session_state:
+    get_download_links(st.session_state['uuid'])
+
 deploy_button = st.button("Deploy Application")
 
 if deploy_button:
@@ -371,24 +393,4 @@ if deploy_button:
             st.error(f"Error deploying to Heroku: {e}")
             print(f"Error deploying to Heroku: {e}")
 
-# Create functions to provide download links for the generated pitch deck and document
-def get_download_links(uuid):
-    try:
-        airtable_records = airtable.all()
-        for record in airtable_records:
-            fields = record['fields']
-            if fields.get('unique_id') == uuid:
-                pitch_deck_url = fields.get('pitch_deck_url')
-                document_url = fields.get('document_url')
-                if pitch_deck_url:
-                    st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
-                if document_url:
-                    st.markdown(f"[Download Document]({document_url})")
-                return
-        st.info("No matching record found in Airtable.")
-    except Exception as e:
-        st.error(f"Error fetching download links: {e}")
 
-# Show download links if available
-if 'uuid' in st.session_state:
-    get_download_links(st.session_state['uuid'])
