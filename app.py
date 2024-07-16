@@ -9,7 +9,7 @@ import re
 import uuid
 import ast
 import base64
-from airtable import Airtable
+from pyairtable import Table
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,7 +18,7 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 github_token = os.getenv("MY_GITHUB_TOKEN")
 heroku_api_key = os.getenv("HEROKU_API_KEY")
-airtable_api_key = os.getenv("AIRTABLE_PERSONAL_TOKEN")
+airtable_api_key = os.getenv("AIRTABLE_API_KEY")
 airtable_base_id = "Airlyft"
 airtable_table_name = "AIrlyft"
 
@@ -39,11 +39,19 @@ if not airtable_api_key:
     st.error("Airtable API key not found. Please set the AIRTABLE_API_KEY environment variable.")
     st.stop()
 
+if not airtable_base_id:
+    st.error("Airtable base ID not found. Please set the AIRTABLE_BASE_ID environment variable.")
+    st.stop()
+
+if not airtable_table_name:
+    st.error("Airtable table name not found. Please set the AIRTABLE_TABLE_NAME environment variable.")
+    st.stop()
+
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
 
 # Initialize Airtable client
-airtable = Airtable(airtable_base_id, airtable_table_name, api_key=airtable_api_key)
+airtable = Table(airtable_api_key, airtable_base_id, airtable_table_name)
 
 st.title("App Idea to Deployed Application")
 
@@ -75,7 +83,7 @@ def generate_requirements(imports):
         'dotenv': 'python-dotenv',
         'nacl': 'pynacl',
         'plotly': 'plotly',
-        'airtable-python-wrapper': 'airtable-python-wrapper'
+        'pyairtable': 'pyairtable'
     }
     return "\n".join([base_requirements.get(lib, lib) for lib in imports if lib in base_requirements])
 
@@ -110,9 +118,9 @@ if submitted:
                     "Status": "In Progress",
                     "pitch_deck": pitch_deck,
                     "document": document,
-                    "created_time": str(time.strftime('%Y-%m-%dT%H:%M:%S'))
+                    "created_time": time.strftime('%Y-%m-%dT%H:%M:%S')
                 }
-                airtable.insert(new_row)
+                airtable.create(new_row)
                 st.success("Added to Airtable and triggered Make.com workflow!")
                 st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
             except Exception as e:
