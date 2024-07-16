@@ -23,31 +23,18 @@ heroku_api_key = os.getenv("HEROKU_API_KEY")
 airtable_api_key = os.getenv("AIRTABLE_API_KEY")
 airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
 airtable_table_name = os.getenv("AIRTABLE_TABLE_NAME")
+google_creds_json = os.getenv("GOOGLE_CREDS_JSON")
 
 # Ensure secrets are set
-if not openai_api_key:
-    st.error("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
-    st.stop()
+required_secrets = [
+    openai_api_key, github_token, heroku_api_key, 
+    airtable_api_key, airtable_base_id, airtable_table_name, google_creds_json
+]
 
-if not github_token:
-    st.error("GitHub token not found. Please set the MY_GITHUB_TOKEN environment variable.")
-    st.stop()
-
-if not heroku_api_key:
-    st.error("Heroku API key not found. Please set the HEROKU_API_KEY environment variable.")
-    st.stop()
-
-if not airtable_api_key:
-    st.error("Airtable API key not found. Please set the AIRTABLE_API_KEY environment variable.")
-    st.stop()
-
-if not airtable_base_id:
-    st.error("Airtable base ID not found. Please set the AIRTABLE_BASE_ID environment variable.")
-    st.stop()
-
-if not airtable_table_name:
-    st.error("Airtable table name not found. Please set the AIRTABLE_TABLE_NAME environment variable.")
-    st.stop()
+for secret in required_secrets:
+    if not secret:
+        st.error(f"{secret} not found. Please set the corresponding environment variable.")
+        st.stop()
 
 # Initialize OpenAI client
 client = OpenAI(api_key=openai_api_key)
@@ -117,7 +104,7 @@ if submitted:
                     "unique_id": unique_id,
                     "app_prompt": app_prompt,
                     "repo_name_input": repo_name_input,
-                    "Status": "In progress",
+                    "Status": "In Progress",
                     "pitch_deck": pitch_deck,
                     "document": document,
                 }
@@ -369,6 +356,17 @@ if deploy_button:
             app_url = f"https://{heroku_app_name}.herokuapp.com"
             st.success(f"Your app has been deployed! You can access it here: {app_url}")
             print(f"Your app has been deployed! You can access it here: {app_url}")
+
+            # Update Airtable Status to Done
+            if 'uuid' in st.session_state:
+                airtable_record_id = st.session_state['uuid']
+                try:
+                    airtable.update_by_field('unique_id', airtable_record_id, {"Status": "Done"})
+                    print("Airtable status updated to Done.")
+                except Exception as e:
+                    st.error(f"Error updating Airtable status: {e}")
+                    print(f"Error updating Airtable status: {e}")
+
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
             print(f"Error deploying to Heroku: {e}")
@@ -376,6 +374,7 @@ if deploy_button:
 # Create functions to provide download links for the generated pitch deck and document
 def get_download_links(uuid):
     try:
+        google_creds = json.loads(google_creds_json)
         creds = Credentials.from_service_account_info(
             google_creds,
             scopes=["https://www.googleapis.com/auth/drive.readonly"]
