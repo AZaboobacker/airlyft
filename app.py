@@ -79,6 +79,10 @@ st.markdown(
         color: orange;
         font-weight: bold;
     }
+    .status-not-started {
+        color: grey;
+        font-weight: bold;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -99,11 +103,11 @@ with st.form("app_idea_form"):
 
 # Status dictionary
 status_dict = {
-    "code_generation": "in progress",
-    "github_repo": "not started",
-    "heroku_deployment": "not started",
-    "pitch_deck": "not started",
-    "document": "not started",
+    "Code Generation": "not started",
+    "GitHub Repository": "not started",
+    "Heroku Deployment": "not started",
+    "Pitch Deck": "not started",
+    "Document": "not started",
 }
 
 def extract_imports(code):
@@ -135,21 +139,23 @@ def update_status(key, status):
     st.session_state.status_dict = status_dict
 
 def display_status():
-    st.markdown("### Status")
+    st.sidebar.markdown("### Status")
     for key, value in status_dict.items():
         if value == "completed":
-            st.markdown(f"✅ {key.replace('_', ' ').title()}")
+            st.sidebar.markdown(f"✅ {key}")
         elif value == "in progress":
-            st.markdown(f"⏳ {key.replace('_', ' ').title()}")
+            st.sidebar.markdown(f"⏳ {key}")
         else:
-            st.markdown(f"🔲 {key.replace('_', ' ').title()}")
+            st.sidebar.markdown(f"🔲 {key}")
 
 if 'status_dict' not in st.session_state:
     st.session_state.status_dict = status_dict
 
+display_status()
+
 if submitted:
     # Step 1: Generate code using OpenAI API
-    update_status("code_generation", "in progress")
+    update_status("Code Generation", "in progress")
     display_status()
     with st.spinner("Generating code..."):
         try:
@@ -157,14 +163,14 @@ if submitted:
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. Also add sample data wherever necessary. Also add a page, where the user can add thier own data in a table format. The User must be able to edit the streamlit app in real-time from the browser by using drag and drop functionality with streamlit components."}
+                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}"}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
             code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
             st.session_state['code_block'] = code_block  # Store in session state
             st.code(code_block, language='python')
-            update_status("code_generation", "completed")
+            update_status("Code Generation", "completed")
             st.success("Code generated successfully.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
@@ -199,7 +205,7 @@ if deploy_button:
         code_block = st.session_state['code_block']  # Retrieve from session state
         with st.spinner("Creating GitHub repository..."):
             try:
-                update_status("github_repo", "in progress")
+                update_status("GitHub Repository", "in progress")
                 display_status()
                 g = Github(github_token)
                 user = g.get_user()
@@ -212,7 +218,7 @@ if deploy_button:
                     repo_name = f"{repo_name}-{unique_suffix}"
 
                 repo = user.create_repo(repo_name)
-                update_status("github_repo", "completed")
+                update_status("GitHub Repository", "completed")
                 st.success(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
@@ -343,7 +349,7 @@ if deploy_button:
 
         with st.spinner("Deploying app to Heroku..."):
             try:
-                update_status("heroku_deployment", "in progress")
+                update_status("Heroku Deployment", "in progress")
                 display_status()
                 # Generate a valid and unique Heroku app name
                 heroku_app_name_base = re.sub(r'[^a-z0-9-]', '', repo_name.lower())[:20].strip('-')
@@ -418,7 +424,7 @@ if deploy_button:
             time.sleep(60)  # Adjust this delay as needed
 
             app_url = f"https://{heroku_app_name}.herokuapp.com"
-            st.success(f"Your app has been deployed! You can access it here: {app_url}")
+            st.success(f"Your app has been deployed! You can access it here: [Heroku App]({app_url})")
 
             # Update Airtable Status to Done
             if 'uuid' in st.session_state:
@@ -431,7 +437,7 @@ if deploy_button:
                         st.success("Airtable status updated to Done.")
                 except Exception as e:
                     st.error(f"Error updating Airtable status: {e}")
-            update_status("heroku_deployment", "completed")
+            update_status("Heroku Deployment", "completed")
             display_status()
 
         except Exception as e:
@@ -467,9 +473,9 @@ def get_status(uuid):
             fields = record['fields']
             if fields.get('unique_id') == uuid:
                 status = fields.get('Status')
-                st.info(f"Current status: {status}")
+                st.sidebar.info(f"Current status: {status}")
                 return
-        st.info("No matching record found in Airtable.")
+        st.sidebar.info("No matching record found in Airtable.")
     except Exception as e:
         st.error(f"Error fetching status: {e}")
 
