@@ -24,12 +24,11 @@ heroku_api_key = os.getenv("HEROKU_API_KEY")
 airtable_api_key = os.getenv("AIRTABLE_API_KEY")
 airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
 airtable_table_name = os.getenv("AIRTABLE_TABLE_NAME")
-make_webhook_url = os.getenv("MAKE_WEBHOOK_URL")
 
 # Ensure secrets are set
 required_secrets = [
     openai_api_key, github_token, heroku_api_key,
-    airtable_api_key, airtable_base_id, airtable_table_name, make_webhook_url
+    airtable_api_key, airtable_base_id, airtable_table_name
 ]
 
 for secret in required_secrets:
@@ -51,45 +50,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Add custom CSS
-st.markdown(
-    """
-    <style>
-    body {
-        font-family: Arial, sans-serif;
-    }
-    .stApp {
-        background-color: #f0f2f6;
-    }
-    .css-18e3th9, .css-1d391kg {
-        background-color: white;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-    .status-completed {
-        color: green;
-        font-weight: bold;
-    }
-    .status-in-progress {
-        color: orange;
-        font-weight: bold;
-    }
-    .status-not-started {
-        color: grey;
-        font-weight: bold;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
 # Title and subtitle
 st.title("AIrlyft")
-st.subheader("Pitch your idea, watch us code and deploy it, plus get a pitch deck and business plans!")
+st.markdown("### Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
 
 # Form for user input
-st.markdown("### Describe your app idea and we'll code and deploy it for you!")
+st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
 with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     repo_name_input = st.text_input("GitHub Repository Name:", value="generated-streamlit-app")
@@ -156,13 +122,18 @@ if submitted:
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. Also add sample data wherever necessary. scrape the data from the internet and add it into a streamlit data frame"}
+                    {"role": "user", "content": f"""Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. if data is needed then, create an input box for the user to enter thier own openai api key and Use openai.chat.completions.create and  gpt4 model and the below structure to get and parse the response response = openai.chat.completions.create
+                model=gpt-4o,
+                messages="role": "system", "content": "You are a helpful assistant.",
+                    "role": "user", "content": f"give me all the food festivals near ."
+        message_content = response.choices[0].message.content.strip() - Use message_content = response.choices[0].message.content.strip() instead of message_content = response.choices[0].message['content'].strip()"""}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
+            message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
             code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
             st.session_state['code_block'] = code_block  # Store in session state
             st.code(code_block, language='python')
@@ -176,19 +147,16 @@ if submitted:
         if pitch_deck or business_plan:
             try:
                 unique_id = str(uuid.uuid4())
-                app_name = re.sub(r'[^a-z0-9-]', '', repo_name_input.lower())
                 new_row = {
                     "unique_id": unique_id,
                     "app_prompt": app_prompt,
                     "repo_name_input": repo_name_input,
-                    "app_name": app_name,
                     "Status": "In progress",
                     "pitch_deck": pitch_deck,
                     "business_plan": business_plan,
                 }
                 airtable.create(new_row)
                 st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
-                st.session_state['app_name'] = app_name  # Store app name in session state
             except Exception as e:
                 st.error(f"Error updating Airtable: {e}")
                 print(f"Error updating Airtable: {e}")
@@ -441,7 +409,7 @@ if deploy_button:
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
 
-# Create functions to provide download links for the generated pitch deck and business plan
+# Create functions to provide download links for the generated pitch deck and document
 def get_download_links(uuid):
     try:
         airtable_records = airtable.all()
@@ -449,11 +417,11 @@ def get_download_links(uuid):
             fields = record['fields']
             if fields.get('unique_id') == uuid:
                 pitch_deck_url = fields.get('pitch_deck_url')
-                business_plan_url = fields.get('business_plan_url')
+                document_url = fields.get('document_url')
                 if pitch_deck_url:
                     st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
-                if business_plan_url:
-                    st.markdown(f"[Download Business Plan]({business_plan_url})")
+                if document_url:
+                    st.markdown(f"[Download Business Plan]({document_url})")
                 return
         st.info("No matching record found in Airtable.")
     except Exception as e:
@@ -481,24 +449,23 @@ def get_status(uuid):
 if 'uuid' in st.session_state:
     get_status(st.session_state['uuid'])
 
-# Trigger Make.com workflow
-def trigger_make_workflow(pitch_deck=False, business_plan=False):
-    uuid = st.session_state['uuid']
-    app_name = st.session_state['app_name']
-    payload = {
-        "unique_id": uuid,
-        "app_name": app_name,
-        "pitch_deck": pitch_deck,
-        "business_plan": business_plan
-    }
-    response = requests.post(make_webhook_url, json=payload)
-    if response.status_code == 200:
-        st.success("Make.com workflow triggered successfully!")
-    else:
-        st.error(f"Error triggering Make.com workflow: {response.text}")
+# Add sections for Pitch Deck and Business Plan
+st.markdown("### Generate Additional Materials")
 
-# Buttons to trigger Make.com workflow
-if pitch_deck:
-    st.button("Generate Pitch Deck", on_click=trigger_make_workflow, args=(True, False))
-if business_plan:
-    st.button("Generate Business Plan", on_click=trigger_make_workflow, args=(False, True))
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("Pitch Deck")
+    generate_pitch_deck_button = st.button("Generate Pitch Deck")
+
+with col2:
+    st.subheader("Business Plan")
+    generate_business_plan_button = st.button("Generate Business Plan")
+
+if generate_pitch_deck_button:
+    # Code to trigger pitch deck generation
+    st.write("Generating Pitch Deck...")
+
+if generate_business_plan_button:
+    # Code to trigger business plan generation
+    st.write("Generating Business Plan...")
