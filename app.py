@@ -140,7 +140,7 @@ def update_status(key, status):
 
 def display_status():
     st.sidebar.markdown("### Status")
-    for key, value in status_dict.items():
+    for key, value in st.session_state.status_dict.items():
         if value == "completed":
             st.sidebar.markdown(f"✅ {key}")
         elif value == "in progress":
@@ -160,10 +160,10 @@ if submitted:
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. Also add sample data wherever necessary. scrape the data from the internet and add it into a streamlit data frame"}
+                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}. Make sure it includes sample data."}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
@@ -189,7 +189,6 @@ if submitted:
                     "document": document,
                 }
                 airtable.create(new_row)
-                #st.success("Added to Airtable and triggered Make.com workflow!")
                 st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
             except Exception as e:
                 st.error(f"Error updating Airtable: {e}")
@@ -458,6 +457,8 @@ def get_download_links(uuid):
                     st.markdown(f"[Download Document]({document_url})")
                 return
         st.info("No matching record found in Airtable.")
+        time.sleep(10)
+        get_download_links(uuid)
     except Exception as e:
         st.error(f"Error fetching download links: {e}")
 
