@@ -48,18 +48,60 @@ airtable = Table(airtable_api_key, airtable_base_id, airtable_table_name)
 # CSS styling for better UI
 st.markdown("""
     <style>
-    .main {background-color: #f0f0f0; padding: 20px; border-radius: 10px; margin: 20px;}
-    .status-pane {background-color: #ffffff; padding: 10px; border-radius: 10px; margin: 20px;}
-    .completed {color: green; font-weight: bold;}
-    .in-progress {color: orange; font-weight: bold;}
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f9f9f9;
+        color: #333333;
+    }
+    .main {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .status-pane {
+        background-color: #ffffff;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        margin-top: 20px;
+    }
+    .completed {
+        color: green;
+        font-weight: bold;
+    }
+    .in-progress {
+        color: orange;
+        font-weight: bold;
+    }
+    .pending {
+        color: gray;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+    }
+    .header-img {
+        width: 100%;
+        border-radius: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
+
+st.image("https://your-cool-image-url.jpg", use_column_width=True, caption="AI-Powered App Deployment")
 
 st.title("App Idea to Deployed Application")
 
 # Status dictionary to store status messages
 status_messages = {
-    "Code Generation": "in progress",
+    "Code Generation": "pending",
     "GitHub Repo Creation": "pending",
     "Heroku Deployment": "pending",
     "Document": "pending",
@@ -81,7 +123,7 @@ def display_status():
         elif status == "in progress":
             st.sidebar.markdown(f"<div class='in-progress'>{status_text}</div>", unsafe_allow_html=True)
         else:
-            st.sidebar.markdown(status_text)
+            st.sidebar.markdown(f"<div class='pending'>{status_text}</div>", unsafe_allow_html=True)
 
 display_status()
 
@@ -285,6 +327,8 @@ if deploy_button:
 
         st.info("Creating GitHub secret for Heroku API Key...")
         try:
+            update_status("Heroku Deployment", "in progress")
+            display_status()
             # Fetch the public key for the repository
             repo_name = repo.full_name
             public_key_url = f"https://api.github.com/repos/{repo_name}/actions/secrets/public-key"
@@ -438,15 +482,13 @@ def get_download_links(uuid):
                         st.markdown(f"[Download Document]({document_url})")
                         update_status("Document", "completed")
                     return
-            st.info("Waiting for document and pitch deck links...")
+            st.info("No matching record found in Airtable.")
             time.sleep(10)
     except Exception as e:
         st.error(f"Error fetching download links: {e}")
 
 # Show download links if available
-if 'uuid' in st.session_state and (pitch_deck or document):
+if 'uuid' in st.session_state:
     get_download_links(st.session_state['uuid'])
 
-# Show Heroku app URL if available
-if 'heroku_url' in st.session_state:
-    st.markdown(f"[Access your deployed app here]({st.session_state['heroku_url']})")
+display_status()
