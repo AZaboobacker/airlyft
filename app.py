@@ -122,13 +122,18 @@ if submitted:
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}"}
+                    {"role": "user", "content": f"""Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. if data is needed then, create an input box for the user to enter thier own openai api key and Use openai.chat.completions.create and  gpt4 model and the below structure to get and parse the response response = openai.chat.completions.create
+                model=gpt-4o,
+                messages="role": "system", "content": "You are a helpful assistant.",
+                    "role": "user", "content": f"give me all the food festivals near ."
+        message_content = response.choices[0].message.content.strip() - Use message_content = response.choices[0].message.content.strip() instead of message_content = response.choices[0].message['content'].strip()"""}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
+            message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
             code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
             st.session_state['code_block'] = code_block  # Store in session state
             st.code(code_block, language='python')
