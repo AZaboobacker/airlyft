@@ -185,8 +185,8 @@ if submitted:
                 "repo_name_input": repo_name_input,
                 "app_name": app_name,
                 "Status": "In progress",
-                "pitch_deck": False,
-                "business_plan": False,
+                "pitch_deck_url": False,
+                "document_url": False,
             }
             airtable.create(new_row)
             st.success("Added to Airtable and triggered Make.com workflow!")
@@ -483,14 +483,14 @@ if 'uuid' in st.session_state:
     get_status(st.session_state['uuid'])
 
 # Function to trigger Make.com workflow
-def trigger_make_workflow(pitch_deck, business_plan):
+def trigger_make_workflow(pitch_deck_url, document_url):
     uuid = st.session_state['uuid']
     app_name = st.session_state['app_name']
     payload = {
         "unique_id": uuid,
         "app_name": app_name,
-        "pitch_deck": pitch_deck,
-        "business_plan": business_plan,
+        "pitch_deck_url": pitch_deck_url,
+        "document_url": document_url,
     }
     try:
         response = requests.post(make_webhook_url, json=payload)
@@ -503,12 +503,12 @@ def trigger_make_workflow(pitch_deck, business_plan):
 col1, col2 = st.columns(2)
 with col1:
     if st.button("Generate Pitch Deck"):
-        trigger_make_workflow(pitch_deck=True, business_plan=False)
+        trigger_make_workflow(pitch_deck_url=True, document_url=False)
         update_status("Pitch Deck", "in progress")
         display_status()
 
 with col2:
     if st.button("Generate Business Plan"):
-        trigger_make_workflow(pitch_deck=False, business_plan=True)
+        trigger_make_workflow(pitch_deck_url=False, document_url=True)
         update_status("Business Plan", "in progress")
         display_status()
