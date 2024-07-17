@@ -90,7 +90,6 @@ st.markdown(
 
 # Title and header image
 st.title("🚀 App Idea to Deployed Application")
-st.image("https://www.sas.com/content/dam/SAS/documents/marketing-whitepapers-ebooks/ebooks/en/the-ai-journey-108076.jpg", use_column_width=True)
 
 # Form for user input
 st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
@@ -140,7 +139,7 @@ def update_status(key, status):
 
 def display_status():
     st.sidebar.markdown("### Status")
-    for key, value in st.session_state.status_dict.items():
+    for key, value in status_dict.items():
         if value == "completed":
             st.sidebar.markdown(f"✅ {key}")
         elif value == "in progress":
@@ -167,10 +166,11 @@ if submitted:
                 model=gpt-4o,
                 messages="role": "system", "content": "You are a helpful assistant.",
                     "role": "user", "content": f"give me all the food festivals near ."
-        message_content = response.choices[0].message.content.strip() - Do not use "ChatCompletion.create" because it gives error as it is depreceated so Use "chat.completions.create()" only instead of "ChatCompletion.create" and message_content = response.choices[0].message.content.strip() instead of message_content = response.choices[0].message['content'].strip()"""}
+        message_content = response.choices[0].message.content.strip() - Use message_content = response.choices[0].message.content.strip() instead of message_content = response.choices[0].message['content'].strip()"""}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
+            message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
             code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
             st.session_state['code_block'] = code_block  # Store in session state
             st.code(code_block, language='python')
@@ -461,8 +461,6 @@ def get_download_links(uuid):
                     st.markdown(f"[Download Document]({document_url})")
                 return
         st.info("No matching record found in Airtable.")
-        time.sleep(10)
-        get_download_links(uuid)
     except Exception as e:
         st.error(f"Error fetching download links: {e}")
 
@@ -487,3 +485,4 @@ def get_status(uuid):
 # Show status pane if available
 if 'uuid' in st.session_state:
     get_status(st.session_state['uuid'])
+
