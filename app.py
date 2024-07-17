@@ -167,7 +167,7 @@ if submitted:
                 model=gpt-4o,
                 messages="role": "system", "content": "You are a helpful assistant.",
                     "role": "user", "content": f"give me all the food festivals near ."
-        message_content = response.choices[0].message.content.strip() - Use chat.completions.create only instead of ChatCompletion.create and message_content = response.choices[0].message.content.strip() instead of message_content = response.choices[0].message['content'].strip()"""}
+        message_content = response.choices[0].message.content.strip() - Use "chat.completions.create()" only instead of "ChatCompletion.create" and message_content = response.choices[0].message.content.strip() instead of message_content = response.choices[0].message['content'].strip()"""}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
