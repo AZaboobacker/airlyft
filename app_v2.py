@@ -10,8 +10,6 @@ import uuid
 import ast
 import base64
 from pyairtable import Table
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
 import nacl.encoding
 import nacl.public
 import nacl.signing
@@ -26,12 +24,11 @@ heroku_api_key = os.getenv("HEROKU_API_KEY")
 airtable_api_key = os.getenv("AIRTABLE_API_KEY")
 airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
 airtable_table_name = os.getenv("AIRTABLE_TABLE_NAME")
-google_creds_json = os.getenv("GOOGLE_CREDS_JSON")
 
 # Ensure secrets are set
 required_secrets = [
-    openai_api_key, github_token, heroku_api_key, 
-    airtable_api_key, airtable_base_id, airtable_table_name, google_creds_json
+    openai_api_key, github_token, heroku_api_key,
+    airtable_api_key, airtable_base_id, airtable_table_name
 ]
 
 for secret in required_secrets:
@@ -45,53 +42,73 @@ client = OpenAI(api_key=openai_api_key)
 # Initialize Airtable client
 airtable = Table(airtable_api_key, airtable_base_id, airtable_table_name)
 
-# CSS styling for better UI
-st.markdown("""
+# Set page configuration
+st.set_page_config(
+    page_title="App Idea to Deployed Application",
+    page_icon=":rocket:",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Add custom CSS
+st.markdown(
+    """
     <style>
-    .main {background-color: #f0f0f0; padding: 20px; border-radius: 10px; margin: 20px;}
-    .status-pane {background-color: #ffffff; padding: 10px; border-radius: 10px; margin: 20px;}
-    .completed {color: green; font-weight: bold;}
-    .in-progress {color: orange; font-weight: bold;}
+    body {
+        font-family: Arial, sans-serif;
+    }
+    .stApp {
+        background: url('https://www.sas.com/content/dam/SAS/documents/marketing-whitepapers-ebooks/ebooks/en/the-ai-journey-108076.jpg') no-repeat center center fixed;
+        background-size: cover;
+    }
+    .css-18e3th9 {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 20px;
+    }
+    .css-1d391kg {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 20px;
+    }
+    .status-completed {
+        color: green;
+        font-weight: bold;
+    }
+    .status-in-progress {
+        color: orange;
+        font-weight: bold;
+    }
+    .status-not-started {
+        color: grey;
+        font-weight: bold;
+    }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
-st.title("App Idea to Deployed Application")
-
-# Status dictionary to store status messages
-status_messages = {
-    "Code Generation": "in progress",
-    "GitHub Repo Creation": "pending",
-    "Heroku Deployment": "pending",
-    "Document": "pending",
-    "Pitch Deck": "pending"
-}
-
-# Function to update status
-def update_status(task, status):
-    status_messages[task] = status
-    display_status()
-
-# Function to display status
-def display_status():
-    st.sidebar.markdown("### Status Pane")
-    for task, status in status_messages.items():
-        status_text = f"{task} - {status.capitalize()}"
-        if status == "completed":
-            st.sidebar.markdown(f"<div class='completed'>{status_text}</div>", unsafe_allow_html=True)
-        elif status == "in progress":
-            st.sidebar.markdown(f"<div class='in-progress'>{status_text}</div>", unsafe_allow_html=True)
-        else:
-            st.sidebar.markdown(status_text)
-
-display_status()
+# Title and header image
+st.title("🚀 App Idea to Deployed Application")
+st.image("https://www.sas.com/content/dam/SAS/documents/marketing-whitepapers-ebooks/ebooks/en/the-ai-journey-108076.jpg", use_column_width=True)
 
 # Form for user input
+st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
 with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     repo_name_input = st.text_input("GitHub Repository Name:", value="generated-streamlit-app")
     pitch_deck = st.checkbox("Pitch Deck")
     document = st.checkbox("Document")
     submitted = st.form_submit_button("Generate App Code")
+
+# Status dictionary
+status_dict = {
+    "Code Generation": "not started",
+    "GitHub Repository": "not started",
+    "Heroku Deployment": "not started",
+    "Pitch Deck": "not started",
+    "Document": "not started",
+}
 
 def extract_imports(code):
     tree = ast.parse(code)
@@ -117,15 +134,36 @@ def generate_requirements(imports):
     }
     return "\n".join([base_requirements.get(lib, lib) for lib in imports if lib in base_requirements])
 
+def update_status(key, status):
+    status_dict[key] = status
+    st.session_state.status_dict = status_dict
+
+def display_status():
+    st.sidebar.markdown("### Status")
+    for key, value in status_dict.items():
+        if value == "completed":
+            st.sidebar.markdown(f"✅ {key}")
+        elif value == "in progress":
+            st.sidebar.markdown(f"⏳ {key}")
+        else:
+            st.sidebar.markdown(f"🔲 {key}")
+
+if 'status_dict' not in st.session_state:
+    st.session_state.status_dict = status_dict
+
+display_status()
+
 if submitted:
     # Step 1: Generate code using OpenAI API
+    update_status("Code Generation", "in progress")
+    display_status()
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}"}
+                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. Also add sample data wherever necessary. Also add a page, where the user can add thier own data in a table format. The User must be able to edit the streamlit app in real-time from the browser by using drag and drop functionality with streamlit components."}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
@@ -133,7 +171,7 @@ if submitted:
             st.session_state['code_block'] = code_block  # Store in session state
             st.code(code_block, language='python')
             update_status("Code Generation", "completed")
-            print("Code generated successfully.")
+            st.success("Code generated successfully.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
@@ -151,7 +189,7 @@ if submitted:
                     "document": document,
                 }
                 airtable.create(new_row)
-                st.success("Added to Airtable and triggered Make.com workflow!")
+                #st.success("Added to Airtable and triggered Make.com workflow!")
                 st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
             except Exception as e:
                 st.error(f"Error updating Airtable: {e}")
@@ -165,9 +203,10 @@ if deploy_button:
         st.error("No code to deploy. Please generate the code first.")
     else:
         code_block = st.session_state['code_block']  # Retrieve from session state
-        print("Deploy button clicked.")
         with st.spinner("Creating GitHub repository..."):
             try:
+                update_status("GitHub Repository", "in progress")
+                display_status()
                 g = Github(github_token)
                 user = g.get_user()
                 repo_name = repo_name_input  # Use the user-provided repository name
@@ -179,9 +218,8 @@ if deploy_button:
                     repo_name = f"{repo_name}-{unique_suffix}"
 
                 repo = user.create_repo(repo_name)
-                print(f"GitHub repository '{repo.name}' created successfully.")
-                st.info(f"GitHub repository '{repo.name}' created successfully.")
-                update_status("GitHub Repo Creation", "completed")
+                update_status("GitHub Repository", "completed")
+                st.success(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
                 print(f"Error creating GitHub repository: {e}")
@@ -189,11 +227,8 @@ if deploy_button:
 
         st.info("Pushing code to GitHub...")
         try:
-            update_status("GitHub Repo Creation", "in progress")
-            display_status()
             # Commit the code to the repository
             repo.create_file("app.py", "initial commit", code_block)
-            print("app.py pushed to GitHub.")
 
             # Extract imports and generate requirements.txt
             imports = extract_imports(code_block)
@@ -201,12 +236,10 @@ if deploy_button:
             if 'streamlit' not in requirements:
                 requirements = 'streamlit\n' + requirements
             repo.create_file("requirements.txt", "add requirements", requirements)
-            print("requirements.txt pushed to GitHub.")
 
             # Create and push the Procfile
             procfile = "web: streamlit run app.py"
             repo.create_file("Procfile", "add Procfile", procfile)
-            print("Procfile pushed to GitHub.")
 
             # Create and push the setup.sh file
             setup_sh = """
@@ -221,7 +254,6 @@ if deploy_button:
             chmod +x setup.sh
             """
             repo.create_file("setup.sh", "add setup.sh", setup_sh)
-            print("setup.sh pushed to GitHub.")
 
             # Create and push the Dockerfile
             dockerfile = """
@@ -250,7 +282,6 @@ if deploy_button:
             ENTRYPOINT ["./entrypoint.sh"]
             """
             repo.create_file("Dockerfile", "add Dockerfile", dockerfile)
-            print("Dockerfile pushed to GitHub.")
 
             # Create and push the entrypoint.sh file
             entrypoint_sh = """
@@ -262,7 +293,6 @@ if deploy_button:
             streamlit run app.py --server.port=${PORT} --server.address=0.0.0.0
             """
             repo.create_file("entrypoint.sh", "add entrypoint.sh", entrypoint_sh)
-            print("entrypoint.sh pushed to GitHub.")
 
             # Create and push the heroku.yml file
             heroku_yml = """
@@ -274,10 +304,8 @@ if deploy_button:
               web: ./entrypoint.sh
             """
             repo.create_file("heroku.yml", "add heroku.yml", heroku_yml)
-            print("heroku.yml pushed to GitHub.")
 
             st.success("Code pushed to GitHub successfully!")
-            update_status("GitHub Repo Creation", "completed")
         except Exception as e:
             st.error(f"Error pushing code to GitHub: {e}")
             print(f"Error pushing code to GitHub: {e}")
@@ -314,7 +342,6 @@ if deploy_button:
             response.raise_for_status()
 
             st.success("GitHub secret for Heroku API Key created successfully!")
-            print("GitHub secret for Heroku API Key created successfully!")
         except Exception as e:
             st.error(f"Error creating GitHub secret: {e}")
             print(f"Error creating GitHub secret: {e}")
@@ -339,14 +366,11 @@ if deploy_button:
                 response = requests.post("https://api.heroku.com/apps", json=payload, headers=headers)
                 if response.status_code == 201:
                     st.success("Heroku app created successfully")
-                    print("Heroku app created successfully.")
                 else:
                     st.error(f"Failed to create Heroku app: {response.json()}")
-                    print(f"Failed to create Heroku app: {response.json()}")
                     st.stop()
             except Exception as e:
                 st.error(f"Error creating Heroku app: {e}")
-                print(f"Error creating Heroku app: {e}")
                 st.stop()
 
         try:
@@ -386,7 +410,6 @@ if deploy_button:
                       HEROKU_API_KEY: ${{{{ secrets.HEROKU_API_KEY }}}}
             """
             repo.create_file(".github/workflows/main.yml", "add GitHub Action", action_yml)
-            print("GitHub Action created.")
 
             # Push changes to GitHub to trigger the Action
             repo.update_file("app.py", "deploy to Heroku", code_block, repo.get_contents("app.py").sha)
@@ -396,57 +419,66 @@ if deploy_button:
             repo.update_file("Dockerfile", "deploy to Heroku", dockerfile, repo.get_contents("Dockerfile").sha)
             repo.update_file("entrypoint.sh", "deploy to Heroku", entrypoint_sh, repo.get_contents("entrypoint.sh").sha)
             repo.update_file("heroku.yml", "deploy to Heroku", heroku_yml, repo.get_contents("heroku.yml").sha)
-            print("Pushed updates to GitHub to trigger deployment.")
 
             st.info("Waiting for deployment to complete...")
             time.sleep(60)  # Adjust this delay as needed
 
             app_url = f"https://{heroku_app_name}.herokuapp.com"
-            st.session_state['heroku_url'] = app_url
-            st.success(f"Your app has been deployed! You can access it here: {app_url}")
-            update_status("Heroku Deployment", "completed")
-            print(f"Your app has been deployed! You can access it here: {app_url}")
+            st.success(f"Your app has been deployed! You can access it here: [Heroku App]({app_url})")
 
             # Update Airtable Status to Done
             if 'uuid' in st.session_state:
                 airtable_record_id = st.session_state['uuid']
                 try:
-                    airtable.update(airtable_record_id, {"Status": "Done"})
-                    print("Airtable status updated to Done.")
+                    record = airtable.first(formula=f"{{unique_id}}='{airtable_record_id}'")
+                    if record:
+                        record_id = record['id']
+                        airtable.update(record_id, {"Status": "Done"})
+                        st.success("Airtable status updated to Done.")
                 except Exception as e:
                     st.error(f"Error updating Airtable status: {e}")
-                    print(f"Error updating Airtable status: {e}")
+            update_status("Heroku Deployment", "completed")
+            display_status()
 
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
-            print(f"Error deploying to Heroku: {e}")
 
 # Create functions to provide download links for the generated pitch deck and document
 def get_download_links(uuid):
     try:
-        while True:
-            airtable_records = airtable.all()
-            for record in airtable_records:
-                fields = record['fields']
-                if fields.get('unique_id') == uuid:
-                    pitch_deck_url = fields.get('pitch_deck_url')
-                    document_url = fields.get('document_url')
-                    if pitch_deck_url:
-                        st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
-                        update_status("Pitch Deck", "completed")
-                    if document_url:
-                        st.markdown(f"[Download Document]({document_url})")
-                        update_status("Document", "completed")
-                    return
-            st.info("Waiting for document and pitch deck links...")
-            time.sleep(10)
+        airtable_records = airtable.all()
+        for record in airtable_records:
+            fields = record['fields']
+            if fields.get('unique_id') == uuid:
+                pitch_deck_url = fields.get('pitch_deck_url')
+                document_url = fields.get('document_url')
+                if pitch_deck_url:
+                    st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
+                if document_url:
+                    st.markdown(f"[Download Document]({document_url})")
+                return
+        st.info("No matching record found in Airtable.")
     except Exception as e:
         st.error(f"Error fetching download links: {e}")
 
 # Show download links if available
-if 'uuid' in st.session_state and (pitch_deck or document):
+if 'uuid' in st.session_state:
     get_download_links(st.session_state['uuid'])
 
-# Show Heroku app URL if available
-if 'heroku_url' in st.session_state:
-    st.markdown(f"[Access your deployed app here]({st.session_state['heroku_url']})")
+# Create a status pane to show the current status
+def get_status(uuid):
+    try:
+        airtable_records = airtable.all()
+        for record in airtable_records:
+            fields = record['fields']
+            if fields.get('unique_id') == uuid:
+                status = fields.get('Status')
+                st.sidebar.info(f"Current status: {status}")
+                return
+        st.sidebar.info("No matching record found in Airtable.")
+    except Exception as e:
+        st.error(f"Error fetching status: {e}")
+
+# Show status pane if available
+if 'uuid' in st.session_state:
+    get_status(st.session_state['uuid'])
