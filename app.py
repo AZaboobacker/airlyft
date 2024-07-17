@@ -59,13 +59,17 @@ st.markdown(
         font-family: Arial, sans-serif;
     }
     .stApp {
-        background-color: #f0f2f6;
+        background: none;
     }
-    .css-18e3th9, .css-1d391kg {
-        background-color: white;
+    .css-18e3th9 {
+        background-color: rgba(255, 255, 255, 0.9);
         border-radius: 10px;
         padding: 20px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    .css-1d391kg {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 20px;
     }
     .status-completed {
         color: green;
@@ -86,15 +90,13 @@ st.markdown(
 
 # Title and subtitle
 st.title("AIrlyft")
-st.subheader("Pitch your idea, watch us code and deploy it, plus get a pitch deck and business plans!")
+st.subheader("Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
 
 # Form for user input
-st.markdown("### Describe your app idea and we'll code and deploy it for you!")
+st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
 with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     repo_name_input = st.text_input("GitHub Repository Name:", value="generated-streamlit-app")
-    pitch_deck = st.checkbox("Pitch Deck")
-    business_plan = st.checkbox("Business Plan")
     submitted = st.form_submit_button("Generate App Code")
 
 # Status dictionary
@@ -172,27 +174,26 @@ if submitted:
             st.error(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
 
-        # Add to Airtable if Pitch Deck or Business Plan is checked
-        if pitch_deck or business_plan:
-            try:
-                unique_id = str(uuid.uuid4())
-                app_name = re.sub(r'[^a-z0-9-]', '', repo_name_input.lower())
-                new_row = {
-                    "unique_id": unique_id,
-                    "app_prompt": app_prompt,
-                    "repo_name_input": repo_name_input,
-                    "app_name": app_name,
-                    "Status": "In progress",
-                    "pitch_deck": pitch_deck,
-                    "business_plan": business_plan,
-                }
-                airtable.create(new_row)
-                st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
-                st.session_state['app_name'] = app_name  # Store app name in session state
-            except Exception as e:
-                st.error(f"Error updating Airtable: {e}")
-                print(f"Error updating Airtable: {e}")
-                st.stop()
+        try:
+            unique_id = str(uuid.uuid4())
+            app_name = repo_name_input  # Use the user-provided repository name as app name
+            st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
+            st.session_state['app_name'] = app_name  # Store app name in session state
+            new_row = {
+                "unique_id": unique_id,
+                "app_prompt": app_prompt,
+                "repo_name_input": repo_name_input,
+                "app_name": app_name,
+                "Status": "In progress",
+                "pitch_deck": False,
+                "business_plan": False,
+            }
+            airtable.create(new_row)
+            st.success("Added to Airtable and triggered Make.com workflow!")
+        except Exception as e:
+            st.error(f"Error updating Airtable: {e}")
+            print(f"Error updating Airtable: {e}")
+            st.stop()
 
 deploy_button = st.button("Deploy Application")
 
@@ -441,7 +442,7 @@ if deploy_button:
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
 
-# Create functions to provide download links for the generated pitch deck and business plan
+# Create functions to provide download links for the generated pitch deck and document
 def get_download_links(uuid):
     try:
         airtable_records = airtable.all()
@@ -449,11 +450,11 @@ def get_download_links(uuid):
             fields = record['fields']
             if fields.get('unique_id') == uuid:
                 pitch_deck_url = fields.get('pitch_deck_url')
-                business_plan_url = fields.get('business_plan_url')
+                document_url = fields.get('document_url')
                 if pitch_deck_url:
                     st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
-                if business_plan_url:
-                    st.markdown(f"[Download Business Plan]({business_plan_url})")
+                if document_url:
+                    st.markdown(f"[Download Business Plan]({document_url})")
                 return
         st.info("No matching record found in Airtable.")
     except Exception as e:
@@ -481,24 +482,33 @@ def get_status(uuid):
 if 'uuid' in st.session_state:
     get_status(st.session_state['uuid'])
 
-# Trigger Make.com workflow
-def trigger_make_workflow(pitch_deck=False, business_plan=False):
+# Function to trigger Make.com workflow
+def trigger_make_workflow(pitch_deck, business_plan):
     uuid = st.session_state['uuid']
     app_name = st.session_state['app_name']
     payload = {
         "unique_id": uuid,
         "app_name": app_name,
         "pitch_deck": pitch_deck,
-        "business_plan": business_plan
+        "business_plan": business_plan,
     }
-    response = requests.post(make_webhook_url, json=payload)
-    if response.status_code == 200:
-        st.success("Make.com workflow triggered successfully!")
-    else:
-        st.error(f"Error triggering Make.com workflow: {response.text}")
+    try:
+        response = requests.post(make_webhook_url, json=payload)
+        response.raise_for_status()
+        st.success("Make.com workflow triggered successfully.")
+    except Exception as e:
+        st.error(f"Error triggering Make.com workflow: {e}")
 
-# Buttons to trigger Make.com workflow
-if pitch_deck:
-    st.button("Generate Pitch Deck", on_click=trigger_make_workflow, args=(True, False))
-if business_plan:
-    st.button("Generate Business Plan", on_click=trigger_make_workflow, args=(False, True))
+# Buttons to generate pitch deck and business plan
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("Generate Pitch Deck"):
+        trigger_make_workflow(pitch_deck=True, business_plan=False)
+        update_status("Pitch Deck", "in progress")
+        display_status()
+
+with col2:
+    if st.button("Generate Business Plan"):
+        trigger_make_workflow(pitch_deck=False, business_plan=True)
+        update_status("Business Plan", "in progress")
+        display_status()
