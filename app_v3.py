@@ -58,13 +58,18 @@ st.markdown(
         font-family: Arial, sans-serif;
     }
     .stApp {
-        background-color: #f0f2f6;
+        background: url('https://www.sas.com/content/dam/SAS/documents/marketing-whitepapers-ebooks/ebooks/en/the-ai-journey-108076.jpg') no-repeat center center fixed;
+        background-size: cover;
     }
-    .main-header {
-        font-size: 2.5em;
-        color: #333;
-        text-align: center;
-        margin-bottom: 20px;
+    .css-18e3th9 {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 20px;
+    }
+    .css-1d391kg {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 10px;
+        padding: 20px;
     }
     .status-completed {
         color: green;
@@ -77,17 +82,6 @@ st.markdown(
     .status-not-started {
         color: grey;
         font-weight: bold;
-    }
-    .status-box {
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-    .section-header {
-        font-size: 1.5em;
-        color: #333;
-        margin-top: 20px;
     }
     </style>
     """,
@@ -142,19 +136,16 @@ def generate_requirements(imports):
 def update_status(key, status):
     status_dict[key] = status
     st.session_state.status_dict = status_dict
-    display_status()
 
 def display_status():
     st.sidebar.markdown("### Status")
-    st.sidebar.markdown('<div class="status-box">', unsafe_allow_html=True)
-    for key, value in st.session_state.status_dict.items():
+    for key, value in status_dict.items():
         if value == "completed":
             st.sidebar.markdown(f"✅ {key}")
         elif value == "in progress":
             st.sidebar.markdown(f"⏳ {key}")
         else:
             st.sidebar.markdown(f"🔲 {key}")
-    st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 if 'status_dict' not in st.session_state:
     st.session_state.status_dict = status_dict
@@ -164,24 +155,30 @@ display_status()
 if submitted:
     # Step 1: Generate code using OpenAI API
     update_status("Code Generation", "in progress")
+    display_status()
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}"}
+                    {"role": "user", "content": f"""Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. if data is needed then, create an input box for the user to enter thier own openai api key and Use openai.chat.completions.create and  gpt4 model and the below structure to get and parse the response response = openai.chat.completions.create
+                model=gpt-4o,
+                messages="role": "system", "content": "You are a helpful assistant.",
+                    "role": "user", "content": f"give me all the food festivals near ."
+        message_content = response.choices[0].message.content.strip() - Use message_content = response.choices[0].message.content.strip() instead of message_content = response.choices[0].message['content'].strip()"""}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
-            code_block = re.sub(r'openai.ChatCompletion.create', 'chat.completions.create', re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1))
+            message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
+            code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
             st.session_state['code_block'] = code_block  # Store in session state
             st.code(code_block, language='python')
             update_status("Code Generation", "completed")
             st.success("Code generated successfully.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
-            update_status("Code Generation", "failed")
+            print(f"Error generating code: {e}")
 
         # Add to Airtable if Pitch Deck or Document is checked
         if pitch_deck or document:
@@ -199,6 +196,8 @@ if submitted:
                 st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
             except Exception as e:
                 st.error(f"Error updating Airtable: {e}")
+                print(f"Error updating Airtable: {e}")
+                st.stop()
 
 deploy_button = st.button("Deploy Application")
 
@@ -210,6 +209,7 @@ if deploy_button:
         with st.spinner("Creating GitHub repository..."):
             try:
                 update_status("GitHub Repository", "in progress")
+                display_status()
                 g = Github(github_token)
                 user = g.get_user()
                 repo_name = repo_name_input  # Use the user-provided repository name
@@ -225,7 +225,8 @@ if deploy_button:
                 st.success(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
-                update_status("GitHub Repository", "failed")
+                print(f"Error creating GitHub repository: {e}")
+                st.stop()
 
         st.info("Pushing code to GitHub...")
         try:
@@ -310,6 +311,8 @@ if deploy_button:
             st.success("Code pushed to GitHub successfully!")
         except Exception as e:
             st.error(f"Error pushing code to GitHub: {e}")
+            print(f"Error pushing code to GitHub: {e}")
+            st.stop()
 
         st.info("Creating GitHub secret for Heroku API Key...")
         try:
@@ -344,10 +347,13 @@ if deploy_button:
             st.success("GitHub secret for Heroku API Key created successfully!")
         except Exception as e:
             st.error(f"Error creating GitHub secret: {e}")
+            print(f"Error creating GitHub secret: {e}")
+            st.stop()
 
         with st.spinner("Deploying app to Heroku..."):
             try:
                 update_status("Heroku Deployment", "in progress")
+                display_status()
                 # Generate a valid and unique Heroku app name
                 heroku_app_name_base = re.sub(r'[^a-z0-9-]', '', repo_name.lower())[:20].strip('-')
                 unique_suffix = str(uuid.uuid4())[:8]
@@ -479,3 +485,4 @@ def get_status(uuid):
 # Show status pane if available
 if 'uuid' in st.session_state:
     get_status(st.session_state['uuid'])
+
