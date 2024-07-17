@@ -89,6 +89,10 @@ st.markdown(
         color: #333;
         margin-top: 20px;
     }
+    .custom-status {
+        font-size: 1.1em;
+        margin: 5px 0;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -142,18 +146,17 @@ def generate_requirements(imports):
 def update_status(key, status):
     status_dict[key] = status
     st.session_state.status_dict = status_dict
-    display_status()
 
 def display_status():
     st.sidebar.markdown("### Status")
     st.sidebar.markdown('<div class="status-box">', unsafe_allow_html=True)
     for key, value in st.session_state.status_dict.items():
         if value == "completed":
-            st.sidebar.markdown(f"✅ {key}")
+            st.sidebar.markdown(f"✅ <span class='custom-status'>{key}</span>", unsafe_allow_html=True)
         elif value == "in progress":
-            st.sidebar.markdown(f"⏳ {key}")
+            st.sidebar.markdown(f"⏳ <span class='custom-status'>{key}</span>", unsafe_allow_html=True)
         else:
-            st.sidebar.markdown(f"🔲 {key}")
+            st.sidebar.markdown(f"🔲 <span class='custom-status'>{key}</span>", unsafe_allow_html=True)
     st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
 if 'status_dict' not in st.session_state:
@@ -164,6 +167,7 @@ display_status()
 if submitted:
     # Step 1: Generate code using OpenAI API
     update_status("Code Generation", "in progress")
+    display_status()
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
@@ -178,10 +182,12 @@ if submitted:
             st.session_state['code_block'] = code_block  # Store in session state
             st.code(code_block, language='python')
             update_status("Code Generation", "completed")
+            display_status()
             st.success("Code generated successfully.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
             update_status("Code Generation", "failed")
+            display_status()
 
         # Add to Airtable if Pitch Deck or Document is checked
         if pitch_deck or document:
@@ -210,6 +216,7 @@ if deploy_button:
         with st.spinner("Creating GitHub repository..."):
             try:
                 update_status("GitHub Repository", "in progress")
+                display_status()
                 g = Github(github_token)
                 user = g.get_user()
                 repo_name = repo_name_input  # Use the user-provided repository name
@@ -222,10 +229,12 @@ if deploy_button:
 
                 repo = user.create_repo(repo_name)
                 update_status("GitHub Repository", "completed")
+                display_status()
                 st.success(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
                 update_status("GitHub Repository", "failed")
+                display_status()
 
         st.info("Pushing code to GitHub...")
         try:
@@ -348,6 +357,7 @@ if deploy_button:
         with st.spinner("Deploying app to Heroku..."):
             try:
                 update_status("Heroku Deployment", "in progress")
+                display_status()
                 # Generate a valid and unique Heroku app name
                 heroku_app_name_base = re.sub(r'[^a-z0-9-]', '', repo_name.lower())[:20].strip('-')
                 unique_suffix = str(uuid.uuid4())[:8]
