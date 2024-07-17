@@ -160,10 +160,10 @@ if submitted:
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. Also add sample data wherever necessary. Also add a page, where the user can add thier own data in a table format. The User must be able to edit the streamlit app in real-time from the browser by using drag and drop functionality with streamlit components."}
+                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. Also add sample data wherever necessary. scrape the data from the internet and add it into a streamlit data frame"}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
