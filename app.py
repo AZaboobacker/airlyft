@@ -44,62 +44,15 @@ airtable = Table(airtable_api_key, airtable_base_id, airtable_table_name)
 
 # Set page configuration
 st.set_page_config(
-    page_title="App Idea to Deployed Application",
+    page_title="AIrlyft",
     page_icon=":rocket:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Add custom CSS
-st.markdown(
-    """
-    <style>
-    body {
-        font-family: Arial, sans-serif;
-    }
-    .stApp {
-        background-color: #f0f2f6;
-    }
-    .main-header {
-        font-size: 2.5em;
-        color: #333;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    .status-completed {
-        color: green;
-        font-weight: bold;
-    }
-    .status-in-progress {
-        color: orange;
-        font-weight: bold;
-    }
-    .status-not-started {
-        color: grey;
-        font-weight: bold;
-    }
-    .status-box {
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-    .section-header {
-        font-size: 1.5em;
-        color: #333;
-        margin-top: 20px;
-    }
-    .custom-status {
-        font-size: 1.1em;
-        margin: 5px 0;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Title and header image
-st.title("🚀 App Idea to Deployed Application")
+# Title and subtitle
+st.title("AIrlyft")
+st.markdown("### Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
 
 # Form for user input
 st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
@@ -107,7 +60,7 @@ with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     repo_name_input = st.text_input("GitHub Repository Name:", value="generated-streamlit-app")
     pitch_deck = st.checkbox("Pitch Deck")
-    document = st.checkbox("Document")
+    business_plan = st.checkbox("Business Plan")
     submitted = st.form_submit_button("Generate App Code")
 
 # Status dictionary
@@ -116,7 +69,7 @@ status_dict = {
     "GitHub Repository": "not started",
     "Heroku Deployment": "not started",
     "Pitch Deck": "not started",
-    "Document": "not started",
+    "Business Plan": "not started",
 }
 
 def extract_imports(code):
@@ -149,15 +102,13 @@ def update_status(key, status):
 
 def display_status():
     st.sidebar.markdown("### Status")
-    st.sidebar.markdown('<div class="status-box">', unsafe_allow_html=True)
-    for key, value in st.session_state.status_dict.items():
+    for key, value in status_dict.items():
         if value == "completed":
-            st.sidebar.markdown(f"✅ <span class='custom-status'>{key}</span>", unsafe_allow_html=True)
+            st.sidebar.markdown(f"✅ {key}")
         elif value == "in progress":
-            st.sidebar.markdown(f"⏳ <span class='custom-status'>{key}</span>", unsafe_allow_html=True)
+            st.sidebar.markdown(f"⏳ {key}")
         else:
-            st.sidebar.markdown(f"🔲 <span class='custom-status'>{key}</span>", unsafe_allow_html=True)
-    st.sidebar.markdown('</div>', unsafe_allow_html=True)
+            st.sidebar.markdown(f"🔲 {key}")
 
 if 'status_dict' not in st.session_state:
     st.session_state.status_dict = status_dict
@@ -178,19 +129,17 @@ if submitted:
                 ]
             )
             message_content = response.choices[0].message.content.strip()
-            code_block = re.sub(r'openai.ChatCompletion.create', 'chat.completions.create', re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1))
+            code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
             st.session_state['code_block'] = code_block  # Store in session state
             st.code(code_block, language='python')
             update_status("Code Generation", "completed")
-            display_status()
             st.success("Code generated successfully.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
-            update_status("Code Generation", "failed")
-            display_status()
+            print(f"Error generating code: {e}")
 
-        # Add to Airtable if Pitch Deck or Document is checked
-        if pitch_deck or document:
+        # Add to Airtable if Pitch Deck or Business Plan is checked
+        if pitch_deck or business_plan:
             try:
                 unique_id = str(uuid.uuid4())
                 new_row = {
@@ -199,12 +148,14 @@ if submitted:
                     "repo_name_input": repo_name_input,
                     "Status": "In progress",
                     "pitch_deck": pitch_deck,
-                    "document": document,
+                    "business_plan": business_plan,
                 }
                 airtable.create(new_row)
                 st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
             except Exception as e:
                 st.error(f"Error updating Airtable: {e}")
+                print(f"Error updating Airtable: {e}")
+                st.stop()
 
 deploy_button = st.button("Deploy Application")
 
@@ -229,12 +180,11 @@ if deploy_button:
 
                 repo = user.create_repo(repo_name)
                 update_status("GitHub Repository", "completed")
-                display_status()
                 st.success(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
-                update_status("GitHub Repository", "failed")
-                display_status()
+                print(f"Error creating GitHub repository: {e}")
+                st.stop()
 
         st.info("Pushing code to GitHub...")
         try:
@@ -319,6 +269,8 @@ if deploy_button:
             st.success("Code pushed to GitHub successfully!")
         except Exception as e:
             st.error(f"Error pushing code to GitHub: {e}")
+            print(f"Error pushing code to GitHub: {e}")
+            st.stop()
 
         st.info("Creating GitHub secret for Heroku API Key...")
         try:
@@ -353,6 +305,8 @@ if deploy_button:
             st.success("GitHub secret for Heroku API Key created successfully!")
         except Exception as e:
             st.error(f"Error creating GitHub secret: {e}")
+            print(f"Error creating GitHub secret: {e}")
+            st.stop()
 
         with st.spinner("Deploying app to Heroku..."):
             try:
@@ -462,7 +416,7 @@ def get_download_links(uuid):
                 if pitch_deck_url:
                     st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
                 if document_url:
-                    st.markdown(f"[Download Document]({document_url})")
+                    st.markdown(f"[Download Business Plan]({document_url})")
                 return
         st.info("No matching record found in Airtable.")
     except Exception as e:
@@ -489,3 +443,24 @@ def get_status(uuid):
 # Show status pane if available
 if 'uuid' in st.session_state:
     get_status(st.session_state['uuid'])
+
+# Add sections for Pitch Deck and Business Plan
+st.markdown("### Generate Additional Materials")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("Pitch Deck")
+    generate_pitch_deck_button = st.button("Generate Pitch Deck")
+
+with col2:
+    st.subheader("Business Plan")
+    generate_business_plan_button = st.button("Generate Business Plan")
+
+if generate_pitch_deck_button:
+    # Code to trigger pitch deck generation
+    st.write("Generating Pitch Deck...")
+
+if generate_business_plan_button:
+    # Code to trigger business plan generation
+    st.write("Generating Business Plan...")
