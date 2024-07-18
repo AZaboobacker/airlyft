@@ -61,15 +61,6 @@ with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     submitted = st.form_submit_button("Generate App Code and Deploy")
 
-# Status dictionary
-status_dict = {
-    "Code Generation": "not started",
-    "GitHub Repository": "not started",
-    "Heroku Deployment": "not started",
-    "Pitch Deck": "not started",
-    "Business Plan": "not started",
-}
-
 def extract_imports(code):
     tree = ast.parse(code)
     imports = set()
