@@ -61,6 +61,15 @@ with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     submitted = st.form_submit_button("Generate App Code and Deploy")
 
+# Status dictionary
+status_dict = {
+    "Code Generation": "not started",
+    "GitHub Repository": "not started",
+    "Heroku Deployment": "not started",
+    "Pitch Deck": "not started",
+    "Business Plan": "not started",
+}
+
 def extract_imports(code):
     tree = ast.parse(code)
     imports = set()
@@ -85,48 +94,110 @@ def generate_requirements(imports):
     }
     return "\n".join([base_requirements.get(lib, lib) for lib in imports if lib in base_requirements])
 
+def update_status(key, status):
+    status_dict[key] = status
+    st.session_state.status_dict = status_dict
+
+def display_status():
+    st.sidebar.markdown("### Status")
+    for key, value in status_dict.items():
+        if value == "completed":
+            st.sidebar.markdown(f"✅ {key}")
+        elif value == "in progress":
+            st.sidebar.markdown(f"⏳ {key}")
+        else:
+            st.sidebar.markdown(f"🔲 {key}")
+
+if 'status_dict' not in st.session_state:
+    st.session_state.status_dict = status_dict
+
+# Sidebar content
+st.sidebar.title("AIrlyft Sidebar")
+
+# User Guide / Instructions
+st.sidebar.header("User Guide")
+st.sidebar.markdown("""
+1. **Describe Your Idea:** Enter a detailed description of your app idea.
+2. **Generate & Deploy:** Click the 'Generate App Code and Deploy' button to automatically generate and deploy your app.
+3. **Marketing & Documentation:** Generate a Pitch Deck or Business Plan from the Marketing & Documentation section.
+""")
+
+# Contact Information
+st.sidebar.header("Contact Information")
+st.sidebar.markdown("""
+If you have any questions or need support, please reach out to us at:
+- **Email:** support@airlyft.com
+- **Phone:** +1 234 567 890
+""")
+
+# Version Information
+st.sidebar.header("App Version")
+st.sidebar.markdown("""
+- **Current Version:** 1.0.0
+- [Release Notes](#)
+""")
+
+# Feedback Form
+st.sidebar.header("Feedback")
+st.sidebar.markdown("We value your feedback! [Submit Feedback](#)")
+
+# Recent Projects
+st.sidebar.header("Recent Projects")
+st.sidebar.markdown("""
+- [Project 1](#)
+- [Project 2](#)
+- [Project 3](#)
+""")
+
+# Quick Links
+st.sidebar.header("Quick Links")
+st.sidebar.markdown("""
+- [Documentation](#)
+- [FAQs](#)
+- [External Tools](#)
+""")
+
+# Analytics
+st.sidebar.header("Statistics")
+st.sidebar.markdown("""
+- **Projects Deployed:** 123
+- **Pitch Decks Generated:** 45
+- **Business Plans Created:** 67
+""")
+
+# Notifications
+st.sidebar.header("Notifications")
+if 'notifications' not in st.session_state:
+    st.session_state.notifications = []
+for notification in st.session_state.notifications:
+    st.sidebar.markdown(f"🔔 {notification}")
+
+display_status()
+
 if submitted:
     # Step 1: Generate code using OpenAI API
+    update_status("Code Generation", "in progress")
+    st.session_state.notifications.append("Generating code...")
+    display_status()
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"""Generate a Streamlit app for the following idea:\n{app_prompt}. 
-                    Ensure the app is modern looking, include relevant icons and add CSS to make it sleek. 
-                    If data is needed, create an input box for the user to enter their own OpenAI API key, 
-                    and use the openai.chat.completions.create method with the GPT-4 model."""}
+                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}"}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
-            message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
             code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
             st.session_state['code_block'] = code_block  # Store in session state
-            st.session_state['app_name'] = f"{re.sub(r'[^a-z0-9-]', '', app_prompt.lower())[:20]}-{str(uuid.uuid4())[:8]}"
             st.code(code_block, language='python')
-            st.success("Code generated successfully.")
+            update_status("Code Generation", "completed")
+            st.session_state.notifications.append("Code generated successfully.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
+            st.session_state.notifications.append(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
-
-        # Add to Airtable if necessary
-        try:
-            unique_id = str(uuid.uuid4())
-            new_row = {
-                "unique_id": unique_id,
-                "app_prompt": app_prompt,
-                "repo_name_input": st.session_state['app_name'],
-                "Status": "In progress",
-                "pitch_deck": False,
-                "business_plan": False,
-            }
-            airtable.create(new_row)
-            st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
-        except Exception as e:
-            st.error(f"Error updating Airtable: {e}")
-            print(f"Error updating Airtable: {e}")
-            st.stop()
 
 deploy_button = st.button("Deploy Application")
 
@@ -137,14 +208,20 @@ if deploy_button:
         code_block = st.session_state['code_block']  # Retrieve from session state
         with st.spinner("Creating GitHub repository..."):
             try:
+                update_status("GitHub Repository", "in progress")
+                st.session_state.notifications.append("Creating GitHub repository...")
+                display_status()
                 g = Github(github_token)
                 user = g.get_user()
-                repo_name = st.session_state['app_name']  # Use the auto-generated repository name
+                repo_name = f"generated-streamlit-app-{str(uuid.uuid4())[:8]}"  # Generate a unique repository name
 
                 repo = user.create_repo(repo_name)
+                update_status("GitHub Repository", "completed")
                 st.success(f"GitHub repository '{repo.name}' created successfully.")
+                st.session_state.notifications.append(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
+                st.session_state.notifications.append(f"Error creating GitHub repository: {e}")
                 print(f"Error creating GitHub repository: {e}")
                 st.stop()
 
@@ -229,8 +306,10 @@ if deploy_button:
             repo.create_file("heroku.yml", "add heroku.yml", heroku_yml)
 
             st.success("Code pushed to GitHub successfully!")
+            st.session_state.notifications.append("Code pushed to GitHub successfully!")
         except Exception as e:
             st.error(f"Error pushing code to GitHub: {e}")
+            st.session_state.notifications.append(f"Error pushing code to GitHub: {e}")
             print(f"Error pushing code to GitHub: {e}")
             st.stop()
 
@@ -265,13 +344,18 @@ if deploy_button:
             response.raise_for_status()
 
             st.success("GitHub secret for Heroku API Key created successfully!")
+            st.session_state.notifications.append("GitHub secret for Heroku API Key created successfully!")
         except Exception as e:
             st.error(f"Error creating GitHub secret: {e}")
+            st.session_state.notifications.append(f"Error creating GitHub secret: {e}")
             print(f"Error creating GitHub secret: {e}")
             st.stop()
 
         with st.spinner("Deploying app to Heroku..."):
             try:
+                update_status("Heroku Deployment", "in progress")
+                st.session_state.notifications.append("Deploying app to Heroku...")
+                display_status()
                 # Generate a valid and unique Heroku app name
                 heroku_app_name_base = re.sub(r'[^a-z0-9-]', '', repo_name.lower())[:20].strip('-')
                 unique_suffix = str(uuid.uuid4())[:8]
@@ -287,11 +371,14 @@ if deploy_button:
                 response = requests.post("https://api.heroku.com/apps", json=payload, headers=headers)
                 if response.status_code == 201:
                     st.success("Heroku app created successfully")
+                    st.session_state.notifications.append("Heroku app created successfully")
                 else:
                     st.error(f"Failed to create Heroku app: {response.json()}")
+                    st.session_state.notifications.append(f"Failed to create Heroku app: {response.json()}")
                     st.stop()
             except Exception as e:
                 st.error(f"Error creating Heroku app: {e}")
+                st.session_state.notifications.append(f"Error creating Heroku app: {e}")
                 st.stop()
 
         try:
@@ -346,6 +433,7 @@ if deploy_button:
 
             app_url = f"https://{heroku_app_name}.herokuapp.com"
             st.success(f"Your app has been deployed! You can access it here: [Heroku App]({app_url})")
+            st.session_state.notifications.append(f"Your app has been deployed! You can access it here: [Heroku App]({app_url})")
 
             # Update Airtable Status to Done
             if 'uuid' in st.session_state:
@@ -356,12 +444,18 @@ if deploy_button:
                         record_id = record['id']
                         airtable.update(record_id, {"Status": "Done"})
                         st.success("Airtable status updated to Done.")
+                        st.session_state.notifications.append("Airtable status updated to Done.")
                 except Exception as e:
                     st.error(f"Error updating Airtable status: {e}")
+                    st.session_state.notifications.append(f"Error updating Airtable status: {e}")
+            update_status("Heroku Deployment", "completed")
+            display_status()
+
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
+            st.session_state.notifications.append(f"Error deploying to Heroku: {e}")
 
-# Create functions to provide download links for the generated pitch deck and business plan
+# Create functions to provide download links for the generated pitch deck and document
 def get_download_links(uuid):
     try:
         airtable_records = airtable.all()
@@ -390,36 +484,42 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Pitch Deck")
-    st.markdown("Generate a professional pitch deck to present your app idea to potential investors.")
+    st.markdown("Generate a professional pitch deck for your app idea.")
     generate_pitch_deck_button = st.button("Generate Pitch Deck")
 
 with col2:
     st.subheader("Business Plan")
-    st.markdown("Generate a comprehensive business plan to outline your app's business strategy.")
+    st.markdown("Generate a comprehensive business plan for your app idea.")
     generate_business_plan_button = st.button("Generate Business Plan")
 
 if generate_pitch_deck_button:
+    # Code to trigger pitch deck generation
+    st.write("Generating Pitch Deck...")
     payload = {
         "unique_id": st.session_state['uuid'],
         "pitch_deck": True,
-        "business_plan": False,
+        "business_plan": False
     }
-    try:
-        response = requests.post(make_webhook_url, json=payload)
-        response.raise_for_status()
-        st.success("Make.com workflow for Pitch Deck triggered successfully.")
-    except Exception as e:
-        st.error(f"Error triggering Make.com workflow for Pitch Deck: {e}")
+    response = requests.post(make_webhook_url, json=payload)
+    if response.status_code == 200:
+        st.write("Pitch Deck generation triggered successfully.")
+        st.session_state.notifications.append("Pitch Deck generation triggered successfully.")
+    else:
+        st.write("Error triggering Pitch Deck generation.")
+        st.session_state.notifications.append("Error triggering Pitch Deck generation.")
 
 if generate_business_plan_button:
+    # Code to trigger business plan generation
+    st.write("Generating Business Plan...")
     payload = {
         "unique_id": st.session_state['uuid'],
         "pitch_deck": False,
-        "business_plan": True,
+        "business_plan": True
     }
-    try:
-        response = requests.post(make_webhook_url, json=payload)
-        response.raise_for_status()
-        st.success("Make.com workflow for Business Plan triggered successfully.")
-    except Exception as e:
-        st.error(f"Error triggering Make.com workflow for Business Plan: {e}")
+    response = requests.post(make_webhook_url, json=payload)
+    if response.status_code == 200:
+        st.write("Business Plan generation triggered successfully.")
+        st.session_state.notifications.append("Business Plan generation triggered successfully.")
+    else:
+        st.write("Error triggering Business Plan generation.")
+        st.session_state.notifications.append("Error triggering Business Plan generation.")
