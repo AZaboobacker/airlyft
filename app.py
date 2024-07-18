@@ -29,7 +29,7 @@ make_webhook_url = os.getenv("MAKE_WEBHOOK_URL")
 # Ensure secrets are set
 required_secrets = [
     openai_api_key, github_token, heroku_api_key,
-    airtable_api_key, airtable_base_id, airtable_table_name, make_webhook_url
+    airtable_api_key, airtable_base_id, airtable_table_name
 ]
 
 for secret in required_secrets:
@@ -51,18 +51,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Initialize session state for uuid and notifications
-if 'uuid' not in st.session_state:
-    st.session_state['uuid'] = None
-
-if 'notifications' not in st.session_state:
-    st.session_state['notifications'] = []
-
-# Sidebar for notifications
-st.sidebar.markdown("### Notifications")
-for notification in st.session_state['notifications']:
-    st.sidebar.markdown(f"- {notification}")
-
 # Title and subtitle
 st.title("AIrlyft")
 st.markdown("### Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
@@ -78,6 +66,8 @@ status_dict = {
     "Code Generation": "not started",
     "GitHub Repository": "not started",
     "Heroku Deployment": "not started",
+    "Pitch Deck": "not started",
+    "Business Plan": "not started",
 }
 
 def extract_imports(code):
@@ -109,31 +99,29 @@ def update_status(key, status):
     st.session_state.status_dict = status_dict
 
 def display_status():
-    st.sidebar.markdown("### Status")
-    for key, value in status_dict.items():
-        if value == "completed":
-            st.sidebar.markdown(f"✅ {key}")
-        elif value == "in progress":
-            st.sidebar.markdown(f"⏳ {key}")
-        else:
-            st.sidebar.markdown(f"🔲 {key}")
+    st.sidebar.markdown("### Notifications")
+    if 'notifications' in st.session_state:
+        for notification in st.session_state.notifications:
+            st.sidebar.markdown(notification)
 
 if 'status_dict' not in st.session_state:
     st.session_state.status_dict = status_dict
+
+if 'notifications' not in st.session_state:
+    st.session_state.notifications = []
 
 display_status()
 
 if submitted:
     # Step 1: Generate code using OpenAI API
     update_status("Code Generation", "in progress")
-    display_status()
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"""Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. if data is needed then, create an input box for the user to enter their own openai api key and Use openai.chat.completions.create and gpt-4 model and the below structure to get and parse the response response = openai.chat.completions.create
+                    {"role": "user", "content": f"""Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. if data is needed then, create an input box for the user to enter thier own openai api key and Use openai.chat.completions.create and  gpt4 model and the below structure to get and parse the response response = openai.chat.completions.create
                 model=gpt-4,
                 messages="role": "system", "content": "You are a helpful assistant.",
                     "role": "user", "content": f"give me all the food festivals near ."
@@ -151,13 +139,17 @@ if submitted:
             st.error(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
 
+        # Generate a valid and unique app name
+        app_name = f"{app_prompt.split()[0]}-{str(uuid.uuid4())[:8]}"
+
         # Add to Airtable
         try:
             unique_id = str(uuid.uuid4())
             new_row = {
                 "unique_id": unique_id,
+                "app_name": app_name,
                 "app_prompt": app_prompt,
-                "Status": "In progress"
+                "Status": "In progress",
             }
             airtable.create(new_row)
             st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
@@ -179,7 +171,13 @@ if deploy_button:
                 display_status()
                 g = Github(github_token)
                 user = g.get_user()
-                repo_name = f"generated-streamlit-app-{str(uuid.uuid4())[:8]}"  # Generate unique repo name
+                repo_name = f"{app_name}-repo"  # Use the app name as the repository name
+
+                # Check if the repository already exists
+                repo_exists = any(repo.name == repo_name for repo in user.get_repos())
+                if repo_exists:
+                    unique_suffix = str(uuid.uuid4())[:8]
+                    repo_name = f"{repo_name}-{unique_suffix}"
 
                 repo = user.create_repo(repo_name)
                 update_status("GitHub Repository", "completed")
@@ -429,6 +427,25 @@ def get_download_links(uuid):
 if 'uuid' in st.session_state:
     get_download_links(st.session_state['uuid'])
 
+# Create a notifications pane to show the current notifications
+def get_notifications(uuid):
+    try:
+        airtable_records = airtable.all()
+        for record in airtable_records:
+            fields = record['fields']
+            if fields.get('unique_id') == uuid:
+                notifications = fields.get('Notifications')
+                if notifications:
+                    st.sidebar.info(notifications)
+                return
+        st.sidebar.info("No matching record found in Airtable.")
+    except Exception as e:
+        st.error(f"Error fetching notifications: {e}")
+
+# Show notifications pane if available
+if 'uuid' in st.session_state:
+    get_notifications(st.session_state['uuid'])
+
 # Add sections for Pitch Deck and Business Plan
 st.markdown("### Marketing & Documentation")
 
@@ -436,48 +453,50 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Pitch Deck")
-    st.markdown("Generate a professional pitch deck for your app idea.")
+    st.markdown("Generate a comprehensive pitch deck to present your app idea to potential investors and stakeholders.")
     generate_pitch_deck_button = st.button("Generate Pitch Deck")
 
 with col2:
     st.subheader("Business Plan")
-    st.markdown("Generate a comprehensive business plan for your app idea.")
+    st.markdown("Generate a detailed business plan to outline your app's business model and strategy.")
     generate_business_plan_button = st.button("Generate Business Plan")
 
 if generate_pitch_deck_button:
-    # Code to trigger pitch deck generation
-    st.write("Generating Pitch Deck...")
-    if 'uuid' in st.session_state and st.session_state['uuid']:
+    if 'uuid' in st.session_state:
         payload = {
             "unique_id": st.session_state['uuid'],
+            "app_name": app_name,
+            "app_prompt": app_prompt,
             "pitch_deck": True,
             "business_plan": False
         }
-        response = requests.post(make_webhook_url, json=payload)
-        if response.status_code == 200:
-            st.write("Pitch Deck generation triggered successfully.")
-            st.session_state.notifications.append("Pitch Deck generation triggered successfully.")
-        else:
-            st.write("Error triggering Pitch Deck generation.")
-            st.session_state.notifications.append("Error triggering Pitch Deck generation.")
+        try:
+            response = requests.post(make_webhook_url, json=payload)
+            if response.status_code == 200:
+                st.success("Pitch Deck generation triggered successfully.")
+            else:
+                st.error(f"Error triggering Pitch Deck generation: {response.text}")
+        except Exception as e:
+            st.error(f"Error triggering Pitch Deck generation: {e}")
     else:
-        st.error("UUID not found. Please generate the app code first.")
+        st.error("No app generated yet. Please generate the app first.")
 
 if generate_business_plan_button:
-    # Code to trigger business plan generation
-    st.write("Generating Business Plan...")
-    if 'uuid' in st.session_state and st.session_state['uuid']:
+    if 'uuid' in st.session_state:
         payload = {
             "unique_id": st.session_state['uuid'],
+            "app_name": app_name,
+            "app_prompt": app_prompt,
             "pitch_deck": False,
             "business_plan": True
         }
-        response = requests.post(make_webhook_url, json=payload)
-        if response.status_code == 200:
-            st.write("Business Plan generation triggered successfully.")
-            st.session_state.notifications.append("Business Plan generation triggered successfully.")
-        else:
-            st.write("Error triggering Business Plan generation.")
-            st.session_state.notifications.append("Error triggering Business Plan generation.")
+        try:
+            response = requests.post(make_webhook_url, json=payload)
+            if response.status_code == 200:
+                st.success("Business Plan generation triggered successfully.")
+            else:
+                st.error(f"Error triggering Business Plan generation: {response.text}")
+        except Exception as e:
+            st.error(f"Error triggering Business Plan generation: {e}")
     else:
-        st.error("UUID not found. Please generate the app code first.")
+        st.error("No app generated yet. Please generate the app first.")
