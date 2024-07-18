@@ -51,53 +51,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Add custom CSS
-st.markdown(
-    """
-    <style>
-    body {
-        font-family: Arial, sans-serif;
-    }
-    .stApp {
-        background: none;
-    }
-    .css-18e3th9 {
-        background-color: rgba(255, 255, 255, 0.9);
-        border-radius: 10px;
-        padding: 20px;
-    }
-    .css-1d391kg {
-        background-color: rgba(255, 255, 255, 0.9);
-        border-radius: 10px;
-        padding: 20px;
-    }
-    .status-completed {
-        color: green;
-        font-weight: bold;
-    }
-    .status-in-progress {
-        color: orange;
-        font-weight: bold;
-    }
-    .status-not-started {
-        color: grey;
-        font-weight: bold;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
 # Title and subtitle
 st.title("AIrlyft")
-st.subheader("Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
+st.markdown("### Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
 
 # Form for user input
 st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
 with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
-    repo_name_input = st.text_input("GitHub Repository Name:", value="generated-streamlit-app")
-    submitted = st.form_submit_button("Generate App Code")
+    submitted = st.form_submit_button("Generate App Code and Deploy")
 
 # Status dictionary
 status_dict = {
@@ -132,64 +94,44 @@ def generate_requirements(imports):
     }
     return "\n".join([base_requirements.get(lib, lib) for lib in imports if lib in base_requirements])
 
-def update_status(key, status):
-    status_dict[key] = status
-    st.session_state.status_dict = status_dict
-
-def display_status():
-    st.sidebar.markdown("### Status")
-    for key, value in status_dict.items():
-        if value == "completed":
-            st.sidebar.markdown(f"✅ {key}")
-        elif value == "in progress":
-            st.sidebar.markdown(f"⏳ {key}")
-        else:
-            st.sidebar.markdown(f"🔲 {key}")
-
-if 'status_dict' not in st.session_state:
-    st.session_state.status_dict = status_dict
-
-display_status()
-
 if submitted:
     # Step 1: Generate code using OpenAI API
-    update_status("Code Generation", "in progress")
-    display_status()
     with st.spinner("Generating code..."):
         try:
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. Also add sample data wherever necessary. scrape the data from the internet and add it into a streamlit data frame"}
+                    {"role": "user", "content": f"""Generate a Streamlit app for the following idea:\n{app_prompt}. 
+                    Ensure the app is modern looking, include relevant icons and add CSS to make it sleek. 
+                    If data is needed, create an input box for the user to enter their own OpenAI API key, 
+                    and use the openai.chat.completions.create method with the GPT-4 model."""}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
+            message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
             code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
             st.session_state['code_block'] = code_block  # Store in session state
+            st.session_state['app_name'] = f"{re.sub(r'[^a-z0-9-]', '', app_prompt.lower())[:20]}-{str(uuid.uuid4())[:8]}"
             st.code(code_block, language='python')
-            update_status("Code Generation", "completed")
             st.success("Code generated successfully.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
 
+        # Add to Airtable if necessary
         try:
             unique_id = str(uuid.uuid4())
-            app_name = repo_name_input  # Use the user-provided repository name as app name
-            st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
-            st.session_state['app_name'] = app_name  # Store app name in session state
             new_row = {
                 "unique_id": unique_id,
                 "app_prompt": app_prompt,
-                "repo_name_input": repo_name_input,
-                "app_name": app_name,
+                "repo_name_input": st.session_state['app_name'],
                 "Status": "In progress",
-                "pitch_deck_url": False,
-                "document_url": False,
+                "pitch_deck": False,
+                "business_plan": False,
             }
             airtable.create(new_row)
-            st.success("Added to Airtable and triggered Make.com workflow!")
+            st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
         except Exception as e:
             st.error(f"Error updating Airtable: {e}")
             print(f"Error updating Airtable: {e}")
@@ -204,20 +146,11 @@ if deploy_button:
         code_block = st.session_state['code_block']  # Retrieve from session state
         with st.spinner("Creating GitHub repository..."):
             try:
-                update_status("GitHub Repository", "in progress")
-                display_status()
                 g = Github(github_token)
                 user = g.get_user()
-                repo_name = repo_name_input  # Use the user-provided repository name
-
-                # Check if the repository already exists
-                repo_exists = any(repo.name == repo_name for repo in user.get_repos())
-                if repo_exists:
-                    unique_suffix = str(uuid.uuid4())[:8]
-                    repo_name = f"{repo_name}-{unique_suffix}"
+                repo_name = st.session_state['app_name']  # Use the auto-generated repository name
 
                 repo = user.create_repo(repo_name)
-                update_status("GitHub Repository", "completed")
                 st.success(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
@@ -348,8 +281,6 @@ if deploy_button:
 
         with st.spinner("Deploying app to Heroku..."):
             try:
-                update_status("Heroku Deployment", "in progress")
-                display_status()
                 # Generate a valid and unique Heroku app name
                 heroku_app_name_base = re.sub(r'[^a-z0-9-]', '', repo_name.lower())[:20].strip('-')
                 unique_suffix = str(uuid.uuid4())[:8]
@@ -436,13 +367,10 @@ if deploy_button:
                         st.success("Airtable status updated to Done.")
                 except Exception as e:
                     st.error(f"Error updating Airtable status: {e}")
-            update_status("Heroku Deployment", "completed")
-            display_status()
-
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
 
-# Create functions to provide download links for the generated pitch deck and document
+# Create functions to provide download links for the generated pitch deck and business plan
 def get_download_links(uuid):
     try:
         airtable_records = airtable.all()
@@ -450,11 +378,11 @@ def get_download_links(uuid):
             fields = record['fields']
             if fields.get('unique_id') == uuid:
                 pitch_deck_url = fields.get('pitch_deck_url')
-                document_url = fields.get('document_url')
+                business_plan_url = fields.get('business_plan_url')
                 if pitch_deck_url:
                     st.markdown(f"[Download Pitch Deck]({pitch_deck_url})")
-                if document_url:
-                    st.markdown(f"[Download Business Plan]({document_url})")
+                if business_plan_url:
+                    st.markdown(f"[Download Business Plan]({business_plan_url})")
                 return
         st.info("No matching record found in Airtable.")
     except Exception as e:
@@ -464,51 +392,43 @@ def get_download_links(uuid):
 if 'uuid' in st.session_state:
     get_download_links(st.session_state['uuid'])
 
-# Create a status pane to show the current status
-def get_status(uuid):
-    try:
-        airtable_records = airtable.all()
-        for record in airtable_records:
-            fields = record['fields']
-            if fields.get('unique_id') == uuid:
-                status = fields.get('Status')
-                st.sidebar.info(f"Current status: {status}")
-                return
-        st.sidebar.info("No matching record found in Airtable.")
-    except Exception as e:
-        st.error(f"Error fetching status: {e}")
+# Add sections for Pitch Deck and Business Plan
+st.markdown("### Marketing & Documentation")
 
-# Show status pane if available
-if 'uuid' in st.session_state:
-    get_status(st.session_state['uuid'])
+col1, col2 = st.columns(2)
 
-# Function to trigger Make.com workflow
-def trigger_make_workflow(pitch_deck_url, document_url):
-    uuid = st.session_state['uuid']
-    app_name = st.session_state['app_name']
+with col1:
+    st.subheader("Pitch Deck")
+    st.markdown("Generate a professional pitch deck to present your app idea to potential investors.")
+    generate_pitch_deck_button = st.button("Generate Pitch Deck")
+
+with col2:
+    st.subheader("Business Plan")
+    st.markdown("Generate a comprehensive business plan to outline your app's business strategy.")
+    generate_business_plan_button = st.button("Generate Business Plan")
+
+if generate_pitch_deck_button:
     payload = {
-        "unique_id": uuid,
-        "app_name": app_name,
-        "pitch_deck_url": pitch_deck_url,
-        "document_url": document_url,
+        "unique_id": st.session_state['uuid'],
+        "pitch_deck": True,
+        "business_plan": False,
     }
     try:
         response = requests.post(make_webhook_url, json=payload)
         response.raise_for_status()
-        st.success("Make.com workflow triggered successfully.")
+        st.success("Make.com workflow for Pitch Deck triggered successfully.")
     except Exception as e:
-        st.error(f"Error triggering Make.com workflow: {e}")
+        st.error(f"Error triggering Make.com workflow for Pitch Deck: {e}")
 
-# Buttons to generate pitch deck and business plan
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Generate Pitch Deck"):
-        trigger_make_workflow(pitch_deck_url=True, document_url=False)
-        update_status("Pitch Deck", "in progress")
-        display_status()
-
-with col2:
-    if st.button("Generate Business Plan"):
-        trigger_make_workflow(pitch_deck_url=False, document_url=True)
-        update_status("Business Plan", "in progress")
-        display_status()
+if generate_business_plan_button:
+    payload = {
+        "unique_id": st.session_state['uuid'],
+        "pitch_deck": False,
+        "business_plan": True,
+    }
+    try:
+        response = requests.post(make_webhook_url, json=payload)
+        response.raise_for_status()
+        st.success("Make.com workflow for Business Plan triggered successfully.")
+    except Exception as e:
+        st.error(f"Error triggering Make.com workflow for Business Plan: {e}")
