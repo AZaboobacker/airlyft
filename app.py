@@ -54,10 +54,10 @@ st.set_page_config(
 
 # Title and subtitle
 st.title("AIrlyft")
-st.markdown("### Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
+st.markdown("### Enter your ideas, generate code and deploy it. ")
 
 # Form for user input
-st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
+#st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
 with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     app_type = st.selectbox("Choose the app type", ["Streamlit", "React"])
@@ -100,7 +100,7 @@ def update_airtable(app_name, app_prompt, repo_name_input, unique_id):
         "repo_name_input": repo_name_input,
         "Status": "In progress",
         "pitch_deck": False,
-        "business_plan": False,
+        "document": False,
     }
     airtable.create(new_row)
     st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
@@ -428,7 +428,7 @@ with col1:
 
 with col2:
     st.subheader("Business Plan")
-    generate_business_plan_button = st.button("Generate Business Plan")
+    generate_document_button = st.button("Generate Business Plan")
 
 if generate_pitch_deck_button:
     st.write("Generating Pitch Deck...")
@@ -440,7 +440,7 @@ if generate_pitch_deck_button:
                 "app_name": st.session_state['app_name'],
                 "app_prompt": app_prompt,
                 "pitch_deck": True,
-                "business_plan": False,
+                "document": False,
             }
             response = requests.post(make_webhook_url, json=payload)
             response.raise_for_status()
@@ -448,7 +448,7 @@ if generate_pitch_deck_button:
         except Exception as e:
             notification.error(f"Error triggering Pitch Deck generation: {e}")
 
-if generate_business_plan_button:
+if generate_document_button:
     st.write("Generating Business Plan...")
     if 'uuid' not in st.session_state:
         st.error("No app data found. Please generate the code first.")
@@ -458,7 +458,7 @@ if generate_business_plan_button:
                 "app_name": st.session_state['app_name'],
                 "app_prompt": app_prompt,
                 "pitch_deck": False,
-                "business_plan": True,
+                "document": True,
             }
             response = requests.post(make_webhook_url, json=payload)
             response.raise_for_status()
