@@ -13,6 +13,7 @@ from pyairtable import Table
 import nacl.encoding
 import nacl.public
 import nacl.signing
+import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,11 +25,12 @@ heroku_api_key = os.getenv("HEROKU_API_KEY")
 airtable_api_key = os.getenv("AIRTABLE_API_KEY")
 airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
 airtable_table_name = os.getenv("AIRTABLE_TABLE_NAME")
+make_webhook_url = os.getenv("MAKE_WEBHOOK_URL")
 
 # Ensure secrets are set
 required_secrets = [
     openai_api_key, github_token, heroku_api_key,
-    airtable_api_key, airtable_base_id, airtable_table_name
+    airtable_api_key, airtable_base_id, airtable_table_name, make_webhook_url
 ]
 
 for secret in required_secrets:
@@ -52,16 +54,37 @@ st.set_page_config(
 
 # Title and subtitle
 st.title("AIrlyft")
-st.markdown("### Enter your ideas, generate code & deploy")
+st.markdown("### Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
 
 # Form for user input
-#st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
+st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
 with st.form("app_idea_form"):
+    app_type = st.selectbox("Select the type of app to generate:", ("React", "Streamlit"))
     app_prompt = st.text_area("Describe your app idea:")
-    repo_name_input = st.text_input("GitHub Repository Name:", value="generated-streamlit-app")
-    pitch_deck = st.checkbox("Pitch Deck")
-    business_plan = st.checkbox("Business Plan")
     submitted = st.form_submit_button("Generate App Code")
+
+# Initialize notification list
+if 'notifications' not in st.session_state:
+    st.session_state['notifications'] = []
+
+def add_notification(message):
+    st.session_state.notifications.append(message)
+    st.sidebar.markdown("### Notifications")
+    for notification in st.session_state.notifications:
+        st.sidebar.markdown(f"✅ {notification}")
+
+def update_status(key, status):
+    st.session_state.status_dict[key] = status
+
+def display_status():
+    st.sidebar.markdown("### Status")
+    for key, value in st.session_state.status_dict.items():
+        if value == "completed":
+            st.sidebar.markdown(f"✅ {key}")
+        elif value == "in progress":
+            st.sidebar.markdown(f"⏳ {key}")
+        else:
+            st.sidebar.markdown(f"🔲 {key}")
 
 # Status dictionary
 status_dict = {
@@ -72,44 +95,6 @@ status_dict = {
     "Business Plan": "not started",
 }
 
-def extract_imports(code):
-    tree = ast.parse(code)
-    imports = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                imports.add(alias.name.split('.')[0])
-        elif isinstance(node, ast.ImportFrom):
-            imports.add(node.module.split('.')[0])
-    return list(imports)
-
-def generate_requirements(imports):
-    base_requirements = {
-        'streamlit': 'streamlit',
-        'openai': 'openai',
-        'requests': 'requests',
-        'github': 'PyGithub',
-        'dotenv': 'python-dotenv',
-        'nacl': 'pynacl',
-        'plotly': 'plotly',
-        'pyairtable': 'pyairtable'
-    }
-    return "\n".join([base_requirements.get(lib, lib) for lib in imports if lib in base_requirements])
-
-def update_status(key, status):
-    status_dict[key] = status
-    st.session_state.status_dict = status_dict
-
-def display_status():
-    st.sidebar.markdown("### Status")
-    for key, value in status_dict.items():
-        if value == "completed":
-            st.sidebar.markdown(f"✅ {key}")
-        elif value == "in progress":
-            st.sidebar.markdown(f"⏳ {key}")
-        else:
-            st.sidebar.markdown(f"🔲 {key}")
-
 if 'status_dict' not in st.session_state:
     st.session_state.status_dict = status_dict
 
@@ -118,49 +103,61 @@ display_status()
 if submitted:
     # Step 1: Generate code using OpenAI API
     update_status("Code Generation", "in progress")
+    add_notification("Code Generation in progress")
     display_status()
     with st.spinner("Generating code..."):
         try:
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"""Generate a Streamlit app for the following idea:\n{app_prompt}. make sure there are no errors, it has to be modern looking, include relevant icons and add css to make it look modern and sleek usable application. if data is needed then, create an input box for the user to enter thier own openai api key and Use openai.chat.completions.create and  gpt4 model and the below structure to get and parse the response response = openai.chat.completions.create
-                model=gpt-4o,
-                messages="role": "system", "content": "You are a helpful assistant.",
-                    "role": "user", "content": f"give me all the food festivals near ."
-        message_content = response.choices[0].message.content.strip() - Use message_content = response.choices[0].message.content.strip() instead of message_content = response.choices[0].message['content'].strip()"""}
-                ]
-            )
-            message_content = response.choices[0].message.content.strip()
-            message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
-            code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
+            if app_type == "React":
+                prompt = f"""Generate a React app for the following idea:\n{app_prompt}. Make sure there are no errors, it has to be modern looking, include relevant icons and add CSS to make it look modern and sleek. Ensure that the code includes a package.json file with appropriate dependencies."""
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                code_block = re.search(r'```javascript\n(.*?)\n```', response.choices[0].message.content.strip(), re.DOTALL).group(1)
+                st.session_state['app_name'] = re.search(r'const appName = "(.*?)";', code_block).group(1)  # Extract app_name from code
+            else:  # Streamlit
+                prompt = f"""Generate a Streamlit app for the following idea:\n{app_prompt}. Make sure there are no errors, it has to be modern looking, include relevant icons and add CSS to make it look modern and sleek. If data is needed, create an input box for the user to enter their own OpenAI API key."""
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                code_block = re.search(r'```python\n(.*?)\n```', response.choices[0].message.content.strip(), re.DOTALL).group(1)
+                st.session_state['app_name'] = re.search(r'app_name = "(.*?)"', code_block).group(1)  # Extract app_name from code
+
             st.session_state['code_block'] = code_block  # Store in session state
-            st.code(code_block, language='python')
+            st.session_state['app_prompt'] = app_prompt
+            st.session_state['app_type'] = app_type
+            st.code(code_block, language='javascript' if app_type == "React" else 'python')
             update_status("Code Generation", "completed")
-            st.success("Code generated successfully.")
+            add_notification("Code Generation completed")
         except Exception as e:
             st.error(f"Error generating code: {e}")
+            add_notification(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
 
-        # Add to Airtable if Pitch Deck or Business Plan is checked
-        if pitch_deck or business_plan:
-            try:
-                unique_id = str(uuid.uuid4())
-                new_row = {
-                    "unique_id": unique_id,
-                    "app_prompt": app_prompt,
-                    "repo_name_input": repo_name_input,
-                    "Status": "In progress",
-                    "pitch_deck": pitch_deck,
-                    "business_plan": business_plan,
-                }
-                airtable.create(new_row)
-                st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
-            except Exception as e:
-                st.error(f"Error updating Airtable: {e}")
-                print(f"Error updating Airtable: {e}")
-                st.stop()
+        # Add to Airtable
+        try:
+            unique_id = str(uuid.uuid4())
+            new_row = {
+                "unique_id": unique_id,
+                "app_prompt": app_prompt,
+                "app_name": st.session_state['app_name'],
+                "Status": "In progress"
+            }
+            airtable.create(new_row)
+            st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
+            add_notification("Added to Airtable and triggered Make.com workflow!")
+        except Exception as e:
+            st.error(f"Error updating Airtable: {e}")
+            add_notification(f"Error updating Airtable: {e}")
+            print(f"Error updating Airtable: {e}")
+            st.stop()
 
 deploy_button = st.button("Deploy Application")
 
@@ -169,13 +166,15 @@ if deploy_button:
         st.error("No code to deploy. Please generate the code first.")
     else:
         code_block = st.session_state['code_block']  # Retrieve from session state
+        app_type = st.session_state['app_type']
         with st.spinner("Creating GitHub repository..."):
             try:
                 update_status("GitHub Repository", "in progress")
+                add_notification("Creating GitHub repository...")
                 display_status()
                 g = Github(github_token)
                 user = g.get_user()
-                repo_name = repo_name_input  # Use the user-provided repository name
+                repo_name = st.session_state['app_name']  # Use the generated app name
 
                 # Check if the repository already exists
                 repo_exists = any(repo.name == repo_name for repo in user.get_repos())
@@ -185,95 +184,137 @@ if deploy_button:
 
                 repo = user.create_repo(repo_name)
                 update_status("GitHub Repository", "completed")
+                add_notification(f"GitHub repository '{repo.name}' created successfully.")
                 st.success(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
+                add_notification(f"Error creating GitHub repository: {e}")
                 print(f"Error creating GitHub repository: {e}")
                 st.stop()
 
         st.info("Pushing code to GitHub...")
         try:
-            # Commit the code to the repository
-            repo.create_file("app.py", "initial commit", code_block)
+            if app_type == "React":
+                # Prepare the React app structure
+                package_json = {
+                    "name": repo_name,
+                    "version": "1.0.0",
+                    "private": True,
+                    "dependencies": {
+                        "react": "^17.0.2",
+                        "react-dom": "^17.0.2",
+                        "react-scripts": "4.0.3"
+                    },
+                    "scripts": {
+                        "start": "react-scripts start",
+                        "build": "react-scripts build",
+                        "test": "react-scripts test",
+                        "eject": "react-scripts eject"
+                    }
+                }
 
-            # Extract imports and generate requirements.txt
-            imports = extract_imports(code_block)
-            requirements = generate_requirements(imports)
-            if 'streamlit' not in requirements:
-                requirements = 'streamlit\n' + requirements
-            repo.create_file("requirements.txt", "add requirements", requirements)
+                public_index_html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React App</title>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
+"""
 
-            # Create and push the Procfile
-            procfile = "web: streamlit run app.py"
-            repo.create_file("Procfile", "add Procfile", procfile)
+                src_index_js = code_block  # Use the generated React code
 
-            # Create and push the setup.sh file
-            setup_sh = """
-            mkdir -p ~/.streamlit/
-            echo "\\
-            [server]\\n\\
-            headless = true\\n\\
-            port = $PORT\\n\\
-            enableCORS = false\\n\\
-            \\n\\
-            " > ~/.streamlit/config.toml
-            chmod +x setup.sh
-            """
-            repo.create_file("setup.sh", "add setup.sh", setup_sh)
+                # Commit the code to the repository
+                repo.create_file("package.json", "initial commit", json.dumps(package_json, indent=2))
+                repo.create_file("public/index.html", "initial commit", public_index_html)
+                repo.create_file("src/index.js", "initial commit", src_index_js)
+            else:
+                # Prepare the Streamlit app structure
+                repo.create_file("app.py", "initial commit", code_block)
 
-            # Create and push the Dockerfile
-            dockerfile = """
-            # Use the official Python image from the Docker Hub
-            FROM python:3.11-slim
+                # Extract imports and generate requirements.txt
+                imports = extract_imports(code_block)
+                requirements = generate_requirements(imports)
+                if 'streamlit' not in requirements:
+                    requirements = 'streamlit\n' + requirements
+                repo.create_file("requirements.txt", "add requirements", requirements)
 
-            # Set the working directory in the container
-            WORKDIR /app
+                # Create and push the Procfile
+                procfile = "web: streamlit run app.py"
+                repo.create_file("Procfile", "add Procfile", procfile)
 
-            # Copy the requirements file into the container
-            COPY requirements.txt .
+                # Create and push the setup.sh file
+                setup_sh = """
+                mkdir -p ~/.streamlit/
+                echo "\\
+                [server]\\n\\
+                headless = true\\n\\
+                port = $PORT\\n\\
+                enableCORS = false\\n\\
+                \\n\\
+                " > ~/.streamlit/config.toml
+                chmod +x setup.sh
+                """
+                repo.create_file("setup.sh", "add setup.sh", setup_sh)
 
-            # Install the dependencies
-            RUN pip install --no-cache-dir -r requirements.txt
+                # Create and push the Dockerfile
+                dockerfile = """
+                # Use the official Python image from the Docker Hub
+                FROM python:3.11-slim
 
-            # Copy the rest of the application code into the container
-            COPY . .
+                # Set the working directory in the container
+                WORKDIR /app
 
-            # Expose the port that Streamlit will run on
-            EXPOSE 8000
+                # Copy the requirements file into the container
+                COPY requirements.txt .
 
-            # Add execute permissions to the entrypoint script
-            RUN chmod +x entrypoint.sh
+                # Install the dependencies
+                RUN pip install --no-cache-dir -r requirements.txt
 
-            # Specify the entrypoint script
-            ENTRYPOINT ["./entrypoint.sh"]
-            """
-            repo.create_file("Dockerfile", "add Dockerfile", dockerfile)
+                # Copy the rest of the application code into the container
+                COPY . .
 
-            # Create and push the entrypoint.sh file
-            entrypoint_sh = """
-            #!/bin/bash
-            # Set the Streamlit server port to the value of the PORT environment variable
-            export STREAMLIT_SERVER_PORT=${PORT}
+                # Expose the port that Streamlit will run on
+                EXPOSE 8000
 
-            # Run Streamlit with the specified port
-            streamlit run app.py --server.port=${PORT} --server.address=0.0.0.0
-            """
-            repo.create_file("entrypoint.sh", "add entrypoint.sh", entrypoint_sh)
+                # Add execute permissions to the entrypoint script
+                RUN chmod +x entrypoint.sh
 
-            # Create and push the heroku.yml file
-            heroku_yml = """
-            build:
-              docker:
-                web: Dockerfile
+                # Specify the entrypoint script
+                ENTRYPOINT ["./entrypoint.sh"]
+                """
+                repo.create_file("Dockerfile", "add Dockerfile", dockerfile)
 
-            run:
-              web: ./entrypoint.sh
-            """
-            repo.create_file("heroku.yml", "add heroku.yml", heroku_yml)
+                # Create and push the entrypoint.sh file
+                entrypoint_sh = """
+                #!/bin/bash
+                # Set the Streamlit server port to the value of the PORT environment variable
+                export STREAMLIT_SERVER_PORT=${PORT}
+
+                # Run Streamlit with the specified port
+                streamlit run app.py --server.port=${PORT} --server.address=0.0.0.0
+                """
+                repo.create_file("entrypoint.sh", "add entrypoint.sh", entrypoint_sh)
+
+                # Create and push the heroku.yml file
+                heroku_yml = """
+                build:
+                  docker:
+                    web: Dockerfile
+
+                run:
+                  web: ./entrypoint.sh
+                """
+                repo.create_file("heroku.yml", "add heroku.yml", heroku_yml)
 
             st.success("Code pushed to GitHub successfully!")
         except Exception as e:
             st.error(f"Error pushing code to GitHub: {e}")
+            add_notification(f"Error pushing code to GitHub: {e}")
             print(f"Error pushing code to GitHub: {e}")
             st.stop()
 
@@ -310,12 +351,14 @@ if deploy_button:
             st.success("GitHub secret for Heroku API Key created successfully!")
         except Exception as e:
             st.error(f"Error creating GitHub secret: {e}")
+            add_notification(f"Error creating GitHub secret: {e}")
             print(f"Error creating GitHub secret: {e}")
             st.stop()
 
         with st.spinner("Deploying app to Heroku..."):
             try:
                 update_status("Heroku Deployment", "in progress")
+                add_notification("Deploying app to Heroku...")
                 display_status()
                 # Generate a valid and unique Heroku app name
                 heroku_app_name_base = re.sub(r'[^a-z0-9-]', '', repo_name.lower())[:20].strip('-')
@@ -327,7 +370,7 @@ if deploy_button:
                 }
                 payload = {
                     "name": heroku_app_name,
-                    "stack": "container"
+                    "buildpacks": ["heroku/nodejs"] if app_type == "React" else ["heroku/python"]
                 }
                 response = requests.post("https://api.heroku.com/apps", json=payload, headers=headers)
                 if response.status_code == 201:
@@ -337,6 +380,7 @@ if deploy_button:
                     st.stop()
             except Exception as e:
                 st.error(f"Error creating Heroku app: {e}")
+                add_notification(f"Error creating Heroku app: {e}")
                 st.stop()
 
         try:
@@ -378,13 +422,18 @@ if deploy_button:
             repo.create_file(".github/workflows/main.yml", "add GitHub Action", action_yml)
 
             # Push changes to GitHub to trigger the Action
-            repo.update_file("app.py", "deploy to Heroku", code_block, repo.get_contents("app.py").sha)
-            repo.update_file("requirements.txt", "deploy to Heroku", requirements, repo.get_contents("requirements.txt").sha)
-            repo.update_file("Procfile", "deploy to Heroku", procfile, repo.get_contents("Procfile").sha)
-            repo.update_file("setup.sh", "deploy to Heroku", setup_sh, repo.get_contents("setup.sh").sha)
-            repo.update_file("Dockerfile", "deploy to Heroku", dockerfile, repo.get_contents("Dockerfile").sha)
-            repo.update_file("entrypoint.sh", "deploy to Heroku", entrypoint_sh, repo.get_contents("entrypoint.sh").sha)
-            repo.update_file("heroku.yml", "deploy to Heroku", heroku_yml, repo.get_contents("heroku.yml").sha)
+            if app_type == "React":
+                repo.update_file("package.json", "deploy to Heroku", json.dumps(package_json, indent=2), repo.get_contents("package.json").sha)
+                repo.update_file("public/index.html", "deploy to Heroku", public_index_html, repo.get_contents("public/index.html").sha)
+                repo.update_file("src/index.js", "deploy to Heroku", src_index_js, repo.get_contents("src/index.js").sha)
+            else:
+                repo.update_file("app.py", "deploy to Heroku", code_block, repo.get_contents("app.py").sha)
+                repo.update_file("requirements.txt", "deploy to Heroku", requirements, repo.get_contents("requirements.txt").sha)
+                repo.update_file("Procfile", "deploy to Heroku", procfile, repo.get_contents("Procfile").sha)
+                repo.update_file("setup.sh", "deploy to Heroku", setup_sh, repo.get_contents("setup.sh").sha)
+                repo.update_file("Dockerfile", "deploy to Heroku", dockerfile, repo.get_contents("Dockerfile").sha)
+                repo.update_file("entrypoint.sh", "deploy to Heroku", entrypoint_sh, repo.get_contents("entrypoint.sh").sha)
+                repo.update_file("heroku.yml", "deploy to Heroku", heroku_yml, repo.get_contents("heroku.yml").sha)
 
             st.info("Waiting for deployment to complete...")
             time.sleep(60)  # Adjust this delay as needed
@@ -400,14 +449,16 @@ if deploy_button:
                     if record:
                         record_id = record['id']
                         airtable.update(record_id, {"Status": "Done"})
-                        st.success("Airtable status updated to Done.")
+                        add_notification("Airtable status updated to Done.")
                 except Exception as e:
                     st.error(f"Error updating Airtable status: {e}")
+                    add_notification(f"Error updating Airtable status: {e}")
             update_status("Heroku Deployment", "completed")
             display_status()
 
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
+            add_notification(f"Error deploying to Heroku: {e}")
 
 # Create functions to provide download links for the generated pitch deck and document
 def get_download_links(uuid):
@@ -431,24 +482,6 @@ def get_download_links(uuid):
 if 'uuid' in st.session_state:
     get_download_links(st.session_state['uuid'])
 
-# Create a status pane to show the current status
-def get_status(uuid):
-    try:
-        airtable_records = airtable.all()
-        for record in airtable_records:
-            fields = record['fields']
-            if fields.get('unique_id') == uuid:
-                status = fields.get('Status')
-                st.sidebar.info(f"Current status: {status}")
-                return
-        st.sidebar.info("No matching record found in Airtable.")
-    except Exception as e:
-        st.error(f"Error fetching status: {e}")
-
-# Show status pane if available
-if 'uuid' in st.session_state:
-    get_status(st.session_state['uuid'])
-
 # Add sections for Pitch Deck and Business Plan
 st.markdown("### Generate Additional Materials")
 
@@ -465,7 +498,35 @@ with col2:
 if generate_pitch_deck_button:
     # Code to trigger pitch deck generation
     st.write("Generating Pitch Deck...")
+    try:
+        payload = {
+            "uuid": st.session_state['uuid'],
+            "app_name": st.session_state['app_name'],
+            "app_prompt": st.session_state['app_prompt'],
+            "pitch_deck": True,
+            "business_plan": False
+        }
+        response = requests.post(make_webhook_url, json=payload)
+        response.raise_for_status()
+        st.success("Pitch Deck generation triggered successfully.")
+    except Exception as e:
+        st.error(f"Error triggering Pitch Deck generation: {e}")
+        add_notification(f"Error triggering Pitch Deck generation: {e}")
 
 if generate_business_plan_button:
     # Code to trigger business plan generation
     st.write("Generating Business Plan...")
+    try:
+        payload = {
+            "uuid": st.session_state['uuid'],
+            "app_name": st.session_state['app_name'],
+            "app_prompt": st.session_state['app_prompt'],
+            "pitch_deck": False,
+            "business_plan": True
+        }
+        response = requests.post(make_webhook_url, json=payload)
+        response.raise_for_status()
+        st.success("Business Plan generation triggered successfully.")
+    except Exception as e:
+        st.error(f"Error triggering Business Plan generation: {e}")
+        add_notification(f"Error triggering Business Plan generation: {e}")
