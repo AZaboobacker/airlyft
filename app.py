@@ -137,14 +137,21 @@ if submitted:
             )
             message_content = response.choices[0].message.content.strip()
             message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
-            code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1) if app_type == "Streamlit" else re.search(r'```javascript\n(.*?)\n```', message_content, re.DOTALL).group(1)
-            st.session_state['code_block'] = code_block  # Store in session state
-            st.code(code_block, language='python' if app_type == "Streamlit" else 'javascript')
-            update_status("Code Generation", "completed")
-            st.success("Code generated successfully.")
+            
+            code_block_match = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL) if app_type == "Streamlit" else re.search(r'```javascript\n(.*?)\n```', message_content, re.DOTALL)
+            
+            if code_block_match:
+                code_block = code_block_match.group(1)
+                st.session_state['code_block'] = code_block  # Store in session state
+                st.code(code_block, language='python' if app_type == "Streamlit" else 'javascript')
+                update_status("Code Generation", "completed")
+                st.success("Code generated successfully.")
+            else:
+                raise ValueError("No code block found in the response.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
+            update_status("Code Generation", "failed")
 
 # Add sections for deployment and additional materials
 st.markdown("### Actions")
