@@ -128,11 +128,12 @@ if submitted:
     display_notifications()
     with st.spinner("Generating code..."):
         try:
+            prompt = f"Generate a {app_type} app for the following idea:\n{app_prompt}. Make sure the code is wrapped in appropriate code block markers like ```python for Streamlit and ```javascript for React."
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": f"Generate a {app_type} app for the following idea:\n{app_prompt}"}
+                    {"role": "user", "content": prompt}
                 ]
             )
             message_content = response.choices[0].message.content.strip()
