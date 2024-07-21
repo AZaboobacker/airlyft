@@ -13,7 +13,6 @@ from pyairtable import Table
 import nacl.encoding
 import nacl.public
 import nacl.signing
-import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -30,7 +29,7 @@ make_webhook_url = os.getenv("MAKE_WEBHOOK_URL")
 # Ensure secrets are set
 required_secrets = [
     openai_api_key, github_token, heroku_api_key,
-    airtable_api_key, airtable_base_id, airtable_table_name, make_webhook_url
+    airtable_api_key, airtable_base_id, airtable_table_name
 ]
 
 for secret in required_secrets:
@@ -59,26 +58,53 @@ st.markdown("### Enter your ideas, we will generate the code - initial version a
 # Form for user input
 st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
 with st.form("app_idea_form"):
-    app_type = st.selectbox("Select the type of app to generate:", ("React", "Streamlit"))
     app_prompt = st.text_area("Describe your app idea:")
+    app_type = st.selectbox("Choose the type of app:", ["Streamlit", "React"])
+    repo_name_input = st.text_input("GitHub Repository Name:", value="generated-app")
     submitted = st.form_submit_button("Generate App Code")
 
-# Initialize notification list
-if 'notifications' not in st.session_state:
-    st.session_state['notifications'] = []
+if submitted:
+    st.session_state['app_prompt'] = app_prompt
+    st.session_state['repo_name_input'] = repo_name_input
 
-def add_notification(message):
-    st.session_state.notifications.append(message)
-    st.sidebar.markdown("### Notifications")
-    for notification in st.session_state.notifications:
-        st.sidebar.markdown(f"✅ {notification}")
+# Status dictionary
+status_dict = {
+    "Code Generation": "not started",
+    "GitHub Repository": "not started",
+    "Heroku Deployment": "not started",
+}
+
+def extract_imports(code):
+    tree = ast.parse(code)
+    imports = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports.add(alias.name.split('.')[0])
+        elif isinstance(node, ast.ImportFrom):
+            imports.add(node.module.split('.')[0])
+    return list(imports)
+
+def generate_requirements(imports):
+    base_requirements = {
+        'streamlit': 'streamlit',
+        'openai': 'openai',
+        'requests': 'requests',
+        'github': 'PyGithub',
+        'dotenv': 'python-dotenv',
+        'nacl': 'pynacl',
+        'plotly': 'plotly',
+        'pyairtable': 'pyairtable'
+    }
+    return "\n".join([base_requirements.get(lib, lib) for lib in imports if lib in base_requirements])
 
 def update_status(key, status):
-    st.session_state.status_dict[key] = status
+    status_dict[key] = status
+    st.session_state.status_dict = status_dict
 
 def display_status():
-    st.sidebar.markdown("### Status")
-    for key, value in st.session_state.status_dict.items():
+    st.sidebar.markdown("### Notifications")
+    for key, value in status_dict.items():
         if value == "completed":
             st.sidebar.markdown(f"✅ {key}")
         elif value == "in progress":
@@ -86,78 +112,44 @@ def display_status():
         else:
             st.sidebar.markdown(f"🔲 {key}")
 
-# Status dictionary
-status_dict = {
-    "Code Generation": "not started",
-    "GitHub Repository": "not started",
-    "Heroku Deployment": "not started",
-    "Pitch Deck": "not started",
-    "Business Plan": "not started",
-}
-
 if 'status_dict' not in st.session_state:
     st.session_state.status_dict = status_dict
 
 display_status()
 
 if submitted:
-    # Step 1: Generate code using OpenAI API
     update_status("Code Generation", "in progress")
-    add_notification("Code Generation in progress")
     display_status()
     with st.spinner("Generating code..."):
         try:
-            if app_type == "React":
-                prompt = f"""Generate a React app for the following idea:\n{app_prompt}. Make sure there are no errors, it has to be modern looking, include relevant icons and add CSS to make it look modern and sleek. Ensure that the code includes a package.json file with appropriate dependencies."""
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-                code_block = re.search(r'```javascript\n(.*?)\n```', response.choices[0].message.content.strip(), re.DOTALL).group(1)
-                st.session_state['app_name'] = re.search(r'const appName = "(.*?)";', code_block).group(1)  # Extract app_name from code
-            else:  # Streamlit
-                prompt = f"""Generate a Streamlit app for the following idea:\n{app_prompt}. Make sure there are no errors, it has to be modern looking, include relevant icons and add CSS to make it look modern and sleek. If data is needed, create an input box for the user to enter their own OpenAI API key."""
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-                code_block = re.search(r'```python\n(.*?)\n```', response.choices[0].message.content.strip(), re.DOTALL).group(1)
-                st.session_state['app_name'] = re.search(r'app_name = "(.*?)"', code_block).group(1)  # Extract app_name from code
+            if app_type == "Streamlit":
+                prompt = f"Generate a Streamlit app for the following idea:\n{app_prompt}. Ensure there are no errors, make it modern looking with relevant icons, and add CSS to make it sleek. If data is needed, create an input box for the user to enter their OpenAI API key. Use openai.chat.completions.create and GPT-4 model."
+            else:
+                prompt = f"Generate a React app for the following idea:\n{app_prompt}. Ensure there are no errors, make it modern looking with relevant icons, and add CSS to make it sleek. If data is needed, create an input box for the user to enter their OpenAI API key. Use openai.chat.completions.create and GPT-4 model."
+
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            message_content = response.choices[0].message.content.strip()
+            message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
+
+            if app_type == "Streamlit":
+                code_block = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL).group(1)
+            else:
+                code_block = re.search(r'```javascript\n(.*?)\n```', message_content, re.DOTALL).group(1)
 
             st.session_state['code_block'] = code_block  # Store in session state
-            st.session_state['app_prompt'] = app_prompt
-            st.session_state['app_type'] = app_type
-            st.code(code_block, language='javascript' if app_type == "React" else 'python')
+            st.session_state['app_name'] = repo_name_input  # Store app name
+            st.code(code_block, language='python' if app_type == "Streamlit" else 'javascript')
             update_status("Code Generation", "completed")
-            add_notification("Code Generation completed")
+            st.success("Code generated successfully.")
         except Exception as e:
             st.error(f"Error generating code: {e}")
-            add_notification(f"Error generating code: {e}")
             print(f"Error generating code: {e}")
-
-        # Add to Airtable
-        try:
-            unique_id = str(uuid.uuid4())
-            new_row = {
-                "unique_id": unique_id,
-                "app_prompt": app_prompt,
-                "app_name": st.session_state['app_name'],
-                "Status": "In progress"
-            }
-            airtable.create(new_row)
-            st.session_state['uuid'] = unique_id  # Store UUID in session state for fetching download links later
-            add_notification("Added to Airtable and triggered Make.com workflow!")
-        except Exception as e:
-            st.error(f"Error updating Airtable: {e}")
-            add_notification(f"Error updating Airtable: {e}")
-            print(f"Error updating Airtable: {e}")
-            st.stop()
 
 deploy_button = st.button("Deploy Application")
 
@@ -166,15 +158,13 @@ if deploy_button:
         st.error("No code to deploy. Please generate the code first.")
     else:
         code_block = st.session_state['code_block']  # Retrieve from session state
-        app_type = st.session_state['app_type']
         with st.spinner("Creating GitHub repository..."):
             try:
                 update_status("GitHub Repository", "in progress")
-                add_notification("Creating GitHub repository...")
                 display_status()
                 g = Github(github_token)
                 user = g.get_user()
-                repo_name = st.session_state['app_name']  # Use the generated app name
+                repo_name = st.session_state['repo_name_input']
 
                 # Check if the repository already exists
                 repo_exists = any(repo.name == repo_name for repo in user.get_repos())
@@ -184,20 +174,17 @@ if deploy_button:
 
                 repo = user.create_repo(repo_name)
                 update_status("GitHub Repository", "completed")
-                add_notification(f"GitHub repository '{repo.name}' created successfully.")
                 st.success(f"GitHub repository '{repo.name}' created successfully.")
             except Exception as e:
                 st.error(f"Error creating GitHub repository: {e}")
-                add_notification(f"Error creating GitHub repository: {e}")
                 print(f"Error creating GitHub repository: {e}")
                 st.stop()
 
         st.info("Pushing code to GitHub...")
         try:
             if app_type == "React":
-                # Prepare the React app structure
                 package_json = {
-                    "name": repo_name,
+                    "name": "generated-react-app",
                     "version": "1.0.0",
                     "private": True,
                     "dependencies": {
@@ -212,23 +199,33 @@ if deploy_button:
                         "eject": "react-scripts eject"
                     }
                 }
+                public_index_html = """
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Generated React App</title>
+                </head>
+                <body>
+                    <div id="root"></div>
+                </body>
+                </html>
+                """
+                src_index_js = """
+                import React from 'react';
+                import ReactDOM from 'react-dom';
+                import './index.css';
+                import App from './App';
 
-                public_index_html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>React App</title>
-</head>
-<body>
-    <div id="root"></div>
-</body>
-</html>
-"""
+                ReactDOM.render(
+                  <React.StrictMode>
+                    <App />
+                  </React.StrictMode>,
+                  document.getElementById('root')
+                );
+                """
 
-                src_index_js = code_block  # Use the generated React code
-
-                # Commit the code to the repository
                 repo.create_file("package.json", "initial commit", json.dumps(package_json, indent=2))
                 repo.create_file("public/index.html", "initial commit", public_index_html)
                 repo.create_file("src/index.js", "initial commit", src_index_js)
@@ -314,7 +311,6 @@ if deploy_button:
             st.success("Code pushed to GitHub successfully!")
         except Exception as e:
             st.error(f"Error pushing code to GitHub: {e}")
-            add_notification(f"Error pushing code to GitHub: {e}")
             print(f"Error pushing code to GitHub: {e}")
             st.stop()
 
@@ -351,14 +347,12 @@ if deploy_button:
             st.success("GitHub secret for Heroku API Key created successfully!")
         except Exception as e:
             st.error(f"Error creating GitHub secret: {e}")
-            add_notification(f"Error creating GitHub secret: {e}")
             print(f"Error creating GitHub secret: {e}")
             st.stop()
 
         with st.spinner("Deploying app to Heroku..."):
             try:
                 update_status("Heroku Deployment", "in progress")
-                add_notification("Deploying app to Heroku...")
                 display_status()
                 # Generate a valid and unique Heroku app name
                 heroku_app_name_base = re.sub(r'[^a-z0-9-]', '', repo_name.lower())[:20].strip('-')
@@ -370,7 +364,7 @@ if deploy_button:
                 }
                 payload = {
                     "name": heroku_app_name,
-                    "buildpacks": ["heroku/nodejs"] if app_type == "React" else ["heroku/python"]
+                    "stack": "container"
                 }
                 response = requests.post("https://api.heroku.com/apps", json=payload, headers=headers)
                 if response.status_code == 201:
@@ -380,7 +374,6 @@ if deploy_button:
                     st.stop()
             except Exception as e:
                 st.error(f"Error creating Heroku app: {e}")
-                add_notification(f"Error creating Heroku app: {e}")
                 st.stop()
 
         try:
@@ -422,18 +415,13 @@ if deploy_button:
             repo.create_file(".github/workflows/main.yml", "add GitHub Action", action_yml)
 
             # Push changes to GitHub to trigger the Action
-            if app_type == "React":
-                repo.update_file("package.json", "deploy to Heroku", json.dumps(package_json, indent=2), repo.get_contents("package.json").sha)
-                repo.update_file("public/index.html", "deploy to Heroku", public_index_html, repo.get_contents("public/index.html").sha)
-                repo.update_file("src/index.js", "deploy to Heroku", src_index_js, repo.get_contents("src/index.js").sha)
-            else:
-                repo.update_file("app.py", "deploy to Heroku", code_block, repo.get_contents("app.py").sha)
-                repo.update_file("requirements.txt", "deploy to Heroku", requirements, repo.get_contents("requirements.txt").sha)
-                repo.update_file("Procfile", "deploy to Heroku", procfile, repo.get_contents("Procfile").sha)
-                repo.update_file("setup.sh", "deploy to Heroku", setup_sh, repo.get_contents("setup.sh").sha)
-                repo.update_file("Dockerfile", "deploy to Heroku", dockerfile, repo.get_contents("Dockerfile").sha)
-                repo.update_file("entrypoint.sh", "deploy to Heroku", entrypoint_sh, repo.get_contents("entrypoint.sh").sha)
-                repo.update_file("heroku.yml", "deploy to Heroku", heroku_yml, repo.get_contents("heroku.yml").sha)
+            repo.update_file("app.py", "deploy to Heroku", code_block, repo.get_contents("app.py").sha)
+            repo.update_file("requirements.txt", "deploy to Heroku", requirements, repo.get_contents("requirements.txt").sha)
+            repo.update_file("Procfile", "deploy to Heroku", procfile, repo.get_contents("Procfile").sha)
+            repo.update_file("setup.sh", "deploy to Heroku", setup_sh, repo.get_contents("setup.sh").sha)
+            repo.update_file("Dockerfile", "deploy to Heroku", dockerfile, repo.get_contents("Dockerfile").sha)
+            repo.update_file("entrypoint.sh", "deploy to Heroku", entrypoint_sh, repo.get_contents("entrypoint.sh").sha)
+            repo.update_file("heroku.yml", "deploy to Heroku", heroku_yml, repo.get_contents("heroku.yml").sha)
 
             st.info("Waiting for deployment to complete...")
             time.sleep(60)  # Adjust this delay as needed
@@ -449,16 +437,14 @@ if deploy_button:
                     if record:
                         record_id = record['id']
                         airtable.update(record_id, {"Status": "Done"})
-                        add_notification("Airtable status updated to Done.")
+                        st.success("Airtable status updated to Done.")
                 except Exception as e:
                     st.error(f"Error updating Airtable status: {e}")
-                    add_notification(f"Error updating Airtable status: {e}")
             update_status("Heroku Deployment", "completed")
             display_status()
 
         except Exception as e:
             st.error(f"Error deploying to Heroku: {e}")
-            add_notification(f"Error deploying to Heroku: {e}")
 
 # Create functions to provide download links for the generated pitch deck and document
 def get_download_links(uuid):
@@ -495,38 +481,21 @@ with col2:
     st.subheader("Business Plan")
     generate_business_plan_button = st.button("Generate Business Plan")
 
-if generate_pitch_deck_button:
-    # Code to trigger pitch deck generation
-    st.write("Generating Pitch Deck...")
-    try:
-        payload = {
-            "uuid": st.session_state['uuid'],
-            "app_name": st.session_state['app_name'],
-            "app_prompt": st.session_state['app_prompt'],
-            "pitch_deck": True,
-            "business_plan": False
-        }
-        response = requests.post(make_webhook_url, json=payload)
-        response.raise_for_status()
-        st.success("Pitch Deck generation triggered successfully.")
-    except Exception as e:
-        st.error(f"Error triggering Pitch Deck generation: {e}")
-        add_notification(f"Error triggering Pitch Deck generation: {e}")
-
-if generate_business_plan_button:
-    # Code to trigger business plan generation
-    st.write("Generating Business Plan...")
-    try:
-        payload = {
-            "uuid": st.session_state['uuid'],
-            "app_name": st.session_state['app_name'],
-            "app_prompt": st.session_state['app_prompt'],
-            "pitch_deck": False,
-            "business_plan": True
-        }
-        response = requests.post(make_webhook_url, json=payload)
-        response.raise_for_status()
-        st.success("Business Plan generation triggered successfully.")
-    except Exception as e:
-        st.error(f"Error triggering Business Plan generation: {e}")
-        add_notification(f"Error triggering Business Plan generation: {e}")
+if generate_pitch_deck_button or generate_business_plan_button:
+    if 'app_name' not in st.session_state or 'app_prompt' not in st.session_state:
+        st.error("App name or prompt missing. Please generate the app first.")
+    else:
+        try:
+            payload = {
+                "app_name": st.session_state['app_name'],
+                "app_prompt": st.session_state['app_prompt'],
+                "pitch_deck": generate_pitch_deck_button,
+                "business_plan": generate_business_plan_button
+            }
+            response = requests.post(make_webhook_url, json=payload)
+            if response.status_code == 200:
+                st.success("Triggered Make.com workflow successfully.")
+            else:
+                st.error(f"Failed to trigger Make.com workflow: {response.text}")
+        except Exception as e:
+            st.error(f"Error triggering Make.com workflow: {e}")
