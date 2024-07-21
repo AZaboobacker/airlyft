@@ -52,10 +52,10 @@ st.set_page_config(
 
 # Title and subtitle
 st.title("AIrlyft")
-st.markdown("### Enter your ideas, we will generate the code - initial version and deploy it. You can also get pitch deck and business plans and other marketing materials.")
+st.markdown("### Enter your ideas, generate code & deploy")
 
 # Form for user input
-st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
+#st.markdown("### Describe your app idea and we'll generate and deploy it for you!")
 with st.form("app_idea_form"):
     app_prompt = st.text_area("Describe your app idea:")
     repo_name_input = st.text_input("GitHub Repository Name:", value="generated-streamlit-app")
