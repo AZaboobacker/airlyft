@@ -129,9 +129,9 @@ if submitted:
     with st.spinner("Generating code..."):
         try:
             if app_type == "React":
-                prompt = f"Generate a React app for the following idea:\n{app_prompt}. Make sure the code is wrapped in appropriate code block markers like ```javascript. The app should include React Router for multiple pages and have a modern UI."
+                prompt = f"Generate a React app for the following idea:\n{app_prompt}. Make sure the code is wrapped in appropriate code block markers like ```javascript. The app should include React Router for multiple pages and have a modern UI. if research or data is needed then, create an input box for the user to enter thier own openai api key."
             else:
-                prompt = f"Generate a Streamlit app for the following idea:\n{app_prompt}. Make sure the code is wrapped in appropriate code block markers like ```python."
+                prompt = f"Generate a Streamlit app for the following idea:\n{app_prompt}. Make sure the code is wrapped in appropriate code block markers like ```python. if data is needed then, create an input box for the user to enter thier own openai api key. if research or data is needed then, create an input box for the user to enter thier own openai api key."
 
             response = client.chat.completions.create(
                 model="gpt-4",
