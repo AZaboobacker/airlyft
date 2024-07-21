@@ -128,7 +128,11 @@ if submitted:
     display_notifications()
     with st.spinner("Generating code..."):
         try:
-            prompt = f"Generate a {app_type} app for the following idea:\n{app_prompt}. Make sure the code is wrapped in appropriate code block markers like ```python for Streamlit and ```javascript for React."
+            if app_type == "React":
+                prompt = f"Generate a React app for the following idea:\n{app_prompt}. Make sure the code is wrapped in appropriate code block markers like ```javascript. The app should include React Router for multiple pages and have a modern UI."
+            else:
+                prompt = f"Generate a Streamlit app for the following idea:\n{app_prompt}. Make sure the code is wrapped in appropriate code block markers like ```python."
+
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -138,9 +142,9 @@ if submitted:
             )
             message_content = response.choices[0].message.content.strip()
             message_content = message_content.replace("openai.ChatCompletion.create", "openai.chat.completions.create")
-            
+
             code_block_match = re.search(r'```python\n(.*?)\n```', message_content, re.DOTALL) if app_type == "Streamlit" else re.search(r'```javascript\n(.*?)\n```', message_content, re.DOTALL)
-            
+
             if code_block_match:
                 code_block = code_block_match.group(1)
                 st.session_state['code_block'] = code_block  # Store in session state
@@ -189,7 +193,7 @@ if deploy_button:
         st.info("Pushing code to GitHub...")
         try:
             # Commit the code to the repository
-            repo.create_file("app.py" if app_type == "Streamlit" else "app.js", "initial commit", code_block)
+            repo.create_file("app.py" if app_type == "Streamlit" else "src/App.js", "initial commit", code_block)
 
             # Extract imports and generate requirements.txt if it's a Streamlit app
             if app_type == "Streamlit":
@@ -374,7 +378,7 @@ if deploy_button:
             repo.create_file(".github/workflows/main.yml", "add GitHub Action", action_yml)
 
             # Push changes to GitHub to trigger the Action
-            repo.update_file("app.py" if app_type == "Streamlit" else "app.js", "deploy to Heroku", code_block, repo.get_contents("app.py" if app_type == "Streamlit" else "app.js").sha)
+            repo.update_file("app.py" if app_type == "Streamlit" else "src/App.js", "deploy to Heroku", code_block, repo.get_contents("app.py" if app_type == "Streamlit" else "src/App.js").sha)
             if app_type == "Streamlit":
                 repo.update_file("requirements.txt", "deploy to Heroku", requirements, repo.get_contents("requirements.txt").sha)
                 repo.update_file("Procfile", "deploy to Heroku", procfile, repo.get_contents("Procfile").sha)
