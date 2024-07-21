@@ -53,7 +53,7 @@ st.set_page_config(
 )
 
 # Title and subtitle
-st.title("AIrlyft")
+st.title("AI-rlyft")
 st.markdown("### Enter your ideas, generate code and deploy it. ")
 
 # Form for user input
